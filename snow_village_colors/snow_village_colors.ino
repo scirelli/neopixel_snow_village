@@ -1,3 +1,4 @@
+#include <time.h>
 #include <Adafruit_NeoPixel.h>
 #ifdef __AVR__
   #include <avr/power.h>
@@ -8,6 +9,31 @@
 #define DELAYVAL 500
 #define BUTTON_PIN   2
 
+#define STATE_CLEAR     0
+#define STATE_ALL_RED   1
+#define STATE_ALL_GREEN 2
+#define STATE_ALL_BLUE  3
+#define STATE_THEATER_WHITE    4
+#define STATE_THEATER_RED      5
+#define STATE_THEATER_BLUE     6
+#define STATE_THEATER_RAINBOW  7
+#define STATE_RAINBOW 8
+#define STATE_LAST 8
+
+const uint32_t BLACK = Adafruit_NeoPixel::Color(0, 0, 0);
+const uint32_t WHITE = Adafruit_NeoPixel::Color(127, 127, 127);
+const uint32_t RED = Adafruit_NeoPixel::Color(255, 0, 0);
+const uint32_t GREEN = Adafruit_NeoPixel::Color(0, 255, 0);
+const uint32_t BLUE = Adafruit_NeoPixel::Color(0, 255,   0);
+const uint32_t RED_HALF = Adafruit_NeoPixel::Color(127,   0,   0);
+const uint32_t BLUE_HALF = Adafruit_NeoPixel::Color(0,   0, 127);
+
+typedef struct ColorWipe {
+    uint32_t color;
+    uint32_t wait;
+    Adafruit_NeoPixel *p_strip;
+} ColorWipe;
+
 // Argument 1 = Number of pixels in NeoPixel strip
 // Argument 2 = Arduino pin number (most are valid)
 // Argument 3 = Pixel type flags, add together as needed:
@@ -16,66 +42,72 @@
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
-Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 boolean oldState = HIGH;
-int     mode     = 0;    // Currently-active animation mode, 0-9
-
+int     state     = 0;    // Currently-active animation state, 0-9
+time_t start,end;
+double dif;
+double duration=40.0;
 
 void setup() {
-#if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
-  clock_prescale_set(clock_div_1);
-#endif
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-  pixels.show();  // Initialize all pixels to 'off'
-  pixels.begin();
+    #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
+        clock_prescale_set(clock_div_1);
+    #endif
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+    strip.show();  // Initialize all pixels to 'off'
+    strip.begin();
+    end = start = time(NULL);
 }
 
 void loop() {
-  // Get current button state.
-  boolean newState = digitalRead(BUTTON_PIN);
+    start = time(NULL);
+    dif=difftime(end,start);
+    // Get current button state.
+    boolean newState = digitalRead(BUTTON_PIN);
 
-  // Check if state changed from high to low (button press).
-  if((newState == LOW) && (oldState == HIGH)) {
-    // Short delay to debounce button.
-    delay(20);
-    // Check if button is still low after debounce.
-    newState = digitalRead(BUTTON_PIN);
-    if(newState == LOW) {      // Yes, still low
-      if(++mode > 8) mode = 0; // Advance to next mode, wrap around after #8
-      switch(mode) {           // Start the new animation...
-        case 0:
-          colorWipe(strip.Color(  0,   0,   0), 50);    // Black/off
-          break;
-        case 1:
-          colorWipe(strip.Color(255,   0,   0), 50);    // Red
-          break;
-        case 2:
-          colorWipe(strip.Color(  0, 255,   0), 50);    // Green
-          break;
-        case 3:
-          colorWipe(strip.Color(  0,   0, 255), 50);    // Blue
-          break;
-        case 4:
-          theaterChase(strip.Color(127, 127, 127), 50); // White
-          break;
-        case 5:
-          theaterChase(strip.Color(127,   0,   0), 50); // Red
-          break;
-        case 6:
-          theaterChase(strip.Color(  0,   0, 127), 50); // Blue
-          break;
-        case 7:
-          rainbow(10);
-          break;
-        case 8:
-          theaterChaseRainbow(50);
-          break;
-      }
+    // Check if state changed from high to low (button press).
+    if((newState == LOW) && (oldState == HIGH)) {
+        // Short delay to debounce button.
+        delay(20);
+        // Check if button is still low after debounce.
+        newState = digitalRead(BUTTON_PIN);
+        if(newState == LOW) {      // Yes, still low
+            if(++state > STATE_LAST) state = STATE_CLEAR; // Advance to next state, wrap around after #8
+        }
     }
-  }
+    // Set the last-read button state to the old state.
+    oldState = newState;
 
-  // Set the last-read button state to the old state.
-  oldState = newState;
+    switch(state) {
+        case STATE_CLEAR:
+            colorWipe(BLACK, 50);
+            break;
+        case STATE_ALL_RED:
+            colorWipe(RED, 50);
+            break;
+        case STATE_ALL_GREEN:
+            colorWipe(GREEN, 50);
+            break;
+        case STATE_ALL_BLUE:
+            colorWipe(BLUE, 50);
+            break;
+        case STATE_THEATER_WHITE:
+            theaterChase(WHITE, 50);
+            break;
+        case STATE_THEATER_RED:
+            theaterChase(RED_HALF, 50);
+            break;
+        case STATE_THEATER_BLUE:
+            theaterChase(BLUE_HALF, 50);
+            break;
+        case STATE_THEATER_RAINBOW:
+            theaterChaseRainbow(50);
+            break;
+        case STATE_RAINBOW:
+            rainbow(10);
+            break;
+    }
+    end = time(NULL);
 }
 
 // Fill strip pixels one after another with a color. Strip is NOT cleared
