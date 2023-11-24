@@ -28,11 +28,20 @@ const uint32_t BLUE = Adafruit_NeoPixel::Color(0, 255,   0);
 const uint32_t RED_HALF = Adafruit_NeoPixel::Color(127,   0,   0);
 const uint32_t BLUE_HALF = Adafruit_NeoPixel::Color(0,   0, 127);
 
-typedef struct ColorWipe {
-    uint32_t color;
-    uint32_t wait;
+typedef struct AnimationData {
+    uint32_t color[NUMPIXELS];
+    uint8_t frameTimes[NUMPIXELS];
+    uint8_t frameCount = NUMPIXELS;
+} AnimationData;
+
+typedef struct Animator {
     Adafruit_NeoPixel *p_strip;
-} ColorWipe;
+    AnimationData *p_anim;
+    uint32_t frameIndex;
+    uint32_t wait;
+    double elapsed;
+    void (*reset)(Animator*);
+} Animator
 
 // Argument 1 = Number of pixels in NeoPixel strip
 // Argument 2 = Arduino pin number (most are valid)
@@ -48,6 +57,7 @@ int     state     = 0;    // Currently-active animation state, 0-9
 time_t start,end;
 double dif;
 double duration=40.0;
+ColorWipe red = { RED, 50, 0.0, p_strip };
 
 void setup() {
     #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
