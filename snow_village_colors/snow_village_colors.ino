@@ -31,7 +31,7 @@ const uint32_t BLUE_HALF = Adafruit_NeoPixel::Color(0,   0, 127);
 typedef struct AnimationData {
     uint32_t color[NUMPIXELS];
     uint8_t frameTimes[NUMPIXELS];
-    uint8_t frameCount = NUMPIXELS;
+    const uint8_t frameCount = NUMPIXELS;
 } AnimationData;
 
 typedef struct Animator {
@@ -40,7 +40,8 @@ typedef struct Animator {
     uint32_t frameIndex;
     uint32_t wait;
     double elapsed;
-    void (*reset)(Animator*);
+    void (*reset)(Animator*, double dt);
+    void (*update)(Animator*, double dt);
 } Animator
 
 // Argument 1 = Number of pixels in NeoPixel strip
@@ -57,7 +58,6 @@ int     state     = 0;    // Currently-active animation state, 0-9
 time_t start,end;
 double dif;
 double duration=40.0;
-ColorWipe red = { RED, 50, 0.0, p_strip };
 
 void setup() {
     #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
@@ -120,6 +120,11 @@ void loop() {
     end = time(NULL);
 }
 
+void colorWipeAnimation(Animator * anim, double dt) {
+
+    strip.setPixelColor(anim.frameIndex, anim.color[frameIndex]);         //  Set pixel's color (in RAM)
+    strip.show();                          //  Update strip to match
+}
 // Fill strip pixels one after another with a color. Strip is NOT cleared
 // first; anything there will be covered pixel by pixel. Pass in color
 // (as a single 'packed' 32-bit value, which you can get by calling
