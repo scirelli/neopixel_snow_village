@@ -1,14 +1,17 @@
 #include <time.h>
 #include <Adafruit_NeoPixel.h>
+#include <stdbool.h>
 #ifdef __AVR__
   #include <avr/power.h>
 #endif
 
+#define INTERNAL_LED 1
 #define PIN        0
 #define NUMPIXELS 8
 #define DELAYVAL 500
 #define BUTTON_PIN   2
 
+#define STATE_ERROR -1
 #define STATE_CLEAR     0
 #define STATE_ALL_RED   1
 #define STATE_ALL_GREEN 2
@@ -20,6 +23,10 @@
 #define STATE_RAINBOW 8
 #define STATE_LAST 8
 
+#define ERROR_NONE 1
+#define ERROR_TEST 10
+
+
 const uint32_t BLACK = Adafruit_NeoPixel::Color(0, 0, 0);
 const uint32_t WHITE = Adafruit_NeoPixel::Color(127, 127, 127);
 const uint32_t RED = Adafruit_NeoPixel::Color(255, 0, 0);
@@ -29,20 +36,24 @@ const uint32_t RED_HALF = Adafruit_NeoPixel::Color(127,   0,   0);
 const uint32_t BLUE_HALF = Adafruit_NeoPixel::Color(0,   0, 127);
 
 typedef struct AnimationData {
-    uint32_t color[NUMPIXELS];
-    uint8_t frameTimes[NUMPIXELS];
-    const uint8_t frameCount = NUMPIXELS;
+    uint32_t frames[NUMPIXELS];
+    uint16_t frameTimes[NUMPIXELS];
+    uint8_t keyframe;
+    const uint8_t frameCount;
+    bool repeat;
 } AnimationData;
 
 typedef struct Animator {
     Adafruit_NeoPixel *p_strip;
-    AnimationData *p_anim;
+    AnimationData *animData;
     uint32_t frameIndex;
-    uint32_t wait;
     double elapsed;
     void (*reset)(Animator*, double dt);
     void (*update)(Animator*, double dt);
-} Animator
+} Animator;
+
+void animatorReset(Animator *, double);
+int colorWipeAnimation(Animator*, double);
 
 // Argument 1 = Number of pixels in NeoPixel strip
 // Argument 2 = Arduino pin number (most are valid)
@@ -53,25 +64,39 @@ typedef struct Animator {
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
-boolean oldState = HIGH;
-int     state     = 0;    // Currently-active animation state, 0-9
-time_t start,end;
+bool oldState = HIGH;
+int     state     = 0;
+time_t start;
 double dif;
-double duration=40.0;
+int errorCode = ERROR_NONE;
+AnimationData animData = {
+    {RED , BLACK, GREEN, BLACK, BLUE, BLACK, BLACK, BLACK},
+    {1000, 10   , 1000 , 10   , 1000, 10   , 1000 , 10   },
+    0, NUMPIXELS, false
+};
+Animator animator = {
+    &strip,
+    &animData,
+    0, 0.0, animatorReset, colorWipeAnimation
+};
 
 void setup() {
+    pinMode(INTERNAL_LED, OUTPUT);
     #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
         clock_prescale_set(clock_div_1);
     #endif
     pinMode(BUTTON_PIN, INPUT_PULLUP);
     strip.show();  // Initialize all pixels to 'off'
     strip.begin();
-    end = start = time(NULL);
+    start = time(NULL);
+
+    state = STATE_CLEAR;
+    errorCode = ERROR_NONE;
 }
 
 void loop() {
+    dif=difftime(time(NULL),start);
     start = time(NULL);
-    dif=difftime(end,start);
     // Get current button state.
     boolean newState = digitalRead(BUTTON_PIN);
 
@@ -90,10 +115,11 @@ void loop() {
 
     switch(state) {
         case STATE_CLEAR:
-            colorWipe(BLACK, 50);
+            strip.clear();
+            strip.show();
             break;
         case STATE_ALL_RED:
-            colorWipe(RED, 50);
+            errorCode = colorWipeAnimation(&animator, dif);
             break;
         case STATE_ALL_GREEN:
             colorWipe(GREEN, 50);
@@ -116,15 +142,43 @@ void loop() {
         case STATE_RAINBOW:
             rainbow(10);
             break;
+        case STATE_ERROR:
+            strip.clear();
+            strip.show();
+            displayErrorCode(errorCode, dif);
+            break;
     }
-    end = time(NULL);
+    if(errorCode != ERROR_NONE) state = STATE_ERROR;
 }
 
-void colorWipeAnimation(Animator * anim, double dt) {
-
-    strip.setPixelColor(anim.frameIndex, anim.color[frameIndex]);         //  Set pixel's color (in RAM)
-    strip.show();                          //  Update strip to match
+void displayErrorCode(int errorCode, double dt) {
+    for(int i=0; i<errorCode; i++) {
+        analogWrite(INTERNAL_LED, 255);
+        delay(200);
+        analogWrite(INTERNAL_LED, 0);
+        delay(200);
+    }
+    delay(300);
+    for(int i=0; i<3; i++) {
+        analogWrite(INTERNAL_LED, 255);
+        delay(20);
+        analogWrite(INTERNAL_LED, 0);
+        delay(20);
+    }
+    delay(500);
 }
+
+void animatorReset(Animator *p_anim, double dt) {
+    p_anim->frameIndex = 0;
+    p_anim->elapsed = 0.0;
+}
+
+int colorWipeAnimation(Animator* p_anim, double dt) {
+    strip.setPixelColor(p_anim->frameIndex, p_anim->animData->frames[p_anim->frameIndex]);
+    strip.show();
+    return ERROR_NONE;
+}
+
 // Fill strip pixels one after another with a color. Strip is NOT cleared
 // first; anything there will be covered pixel by pixel. Pass in color
 // (as a single 'packed' 32-bit value, which you can get by calling
