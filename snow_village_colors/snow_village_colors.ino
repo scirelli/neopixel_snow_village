@@ -26,34 +26,46 @@
 #define ERROR_NONE 1
 #define ERROR_TEST 10
 
+#define BUTTON_DEBOUNCE_DELAY  20
 
-const uint32_t BLACK = Adafruit_NeoPixel::Color(0, 0, 0);
-const uint32_t WHITE = Adafruit_NeoPixel::Color(127, 127, 127);
-const uint32_t RED = Adafruit_NeoPixel::Color(255, 0, 0);
-const uint32_t GREEN = Adafruit_NeoPixel::Color(0, 255, 0);
-const uint32_t BLUE = Adafruit_NeoPixel::Color(0, 255,   0);
-const uint32_t RED_HALF = Adafruit_NeoPixel::Color(127,   0,   0);
-const uint32_t BLUE_HALF = Adafruit_NeoPixel::Color(0,   0, 127);
+static const uint32_t BLACK = Adafruit_NeoPixel::Color(0, 0, 0);
+static const uint32_t WHITE = Adafruit_NeoPixel::Color(127, 127, 127);
+static const uint32_t RED = Adafruit_NeoPixel::Color(255, 0, 0);
+static const uint32_t GREEN = Adafruit_NeoPixel::Color(0, 255, 0);
+static const uint32_t BLUE = Adafruit_NeoPixel::Color(0, 255,   0);
+static const uint32_t RED_HALF = Adafruit_NeoPixel::Color(127,   0,   0);
+static const uint32_t BLUE_HALF = Adafruit_NeoPixel::Color(0,   0, 127);
 
-typedef struct AnimationData {
+typedef struct {
     uint32_t frames[NUMPIXELS];
     uint16_t frameTimes[NUMPIXELS];
     uint8_t keyframe;
     const uint8_t frameCount;
     bool repeat;
-} AnimationData;
+} animationData_cfg_t;
 
-typedef struct Animator {
+typedef struct {
     Adafruit_NeoPixel *p_strip;
-    AnimationData *animData;
+    animationData_cfg_t *animData;
     uint32_t frameIndex;
     double elapsed;
-    void (*reset)(Animator*, double dt);
-    void (*update)(Animator*, double dt);
-} Animator;
+    void (*reset)(animator_handle_t*, double dt);
+    void (*update)(animator_handle_t*, double dt);
+} animator_handle_t;
 
-void animatorReset(Animator *, double);
-int colorWipeAnimation(Animator*, double);
+typedef void (*buttonPressHandler_t)(time_t);
+
+typedef struct {
+    bool   peState = HIGH,
+    bool   curState = HIGH,
+    time_t changeTime;
+    buttonPressHandler_t handlers[8],
+    unsigned int handlers,
+} button_handle_t;
+
+static void animatorReset(animator_handle_t *, double);
+static int colorWipeAnimation(animator_handle_t*, double);
+static void processButtons(time_t);
 
 // Argument 1 = Number of pixels in NeoPixel strip
 // Argument 2 = Arduino pin number (most are valid)
@@ -63,18 +75,18 @@ int colorWipeAnimation(Animator*, double);
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
-Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
-bool oldState = HIGH;
-int     state     = 0;
-time_t start;
-double dif;
-int errorCode = ERROR_NONE;
-AnimationData animData = {
+static Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+static bool   buttonPreState = HIGH, buttonCurState = HIGH;
+static int    state     = 0;
+static time_t startTime, buttonChangeTime;
+static double dif;
+static int    errorCode = ERROR_NONE;
+static animationData_cfg_t animData = {
     {RED , BLACK, GREEN, BLACK, BLUE, BLACK, BLACK, BLACK},
     {1000, 10   , 1000 , 10   , 1000, 10   , 1000 , 10   },
     0, NUMPIXELS, false
 };
-Animator animator = {
+static animator_handle_t animator = {
     &strip,
     &animData,
     0, 0.0, animatorReset, colorWipeAnimation
@@ -88,30 +100,19 @@ void setup() {
     pinMode(BUTTON_PIN, INPUT_PULLUP);
     strip.show();  // Initialize all pixels to 'off'
     strip.begin();
-    start = time(NULL);
+    startTime, buttonDown, buttonUp = time(NULL);
 
     state = STATE_CLEAR;
+    buttonPreState = HIGH;
+    buttonCurState = HIGH;
     errorCode = ERROR_NONE;
 }
 
 void loop() {
-    dif=difftime(time(NULL),start);
-    start = time(NULL);
-    // Get current button state.
-    boolean newState = digitalRead(BUTTON_PIN);
+    dif=difftime(time(NULL),startTime);
+    startTime = time(NULL);
 
-    // Check if state changed from high to low (button press).
-    if((newState == LOW) && (oldState == HIGH)) {
-        // Short delay to debounce button.
-        delay(20);
-        // Check if button is still low after debounce.
-        newState = digitalRead(BUTTON_PIN);
-        if(newState == LOW) {      // Yes, still low
-            if(++state > STATE_LAST) state = STATE_CLEAR; // Advance to next state, wrap around after #8
-        }
-    }
-    // Set the last-read button state to the old state.
-    oldState = newState;
+    processButtons(startTime);
 
     switch(state) {
         case STATE_CLEAR:
@@ -119,7 +120,7 @@ void loop() {
             strip.show();
             break;
         case STATE_ALL_RED:
-            errorCode = colorWipeAnimation(&animator, dif);
+            errorCode = colorWipeAnimation(&animator_handle_t, dif);
             break;
         case STATE_ALL_GREEN:
             colorWipe(GREEN, 50);
@@ -143,15 +144,27 @@ void loop() {
             rainbow(10);
             break;
         case STATE_ERROR:
-            strip.clear();
-            strip.show();
             displayErrorCode(errorCode, dif);
             break;
     }
     if(errorCode != ERROR_NONE) state = STATE_ERROR;
 }
 
-void displayErrorCode(int errorCode, double dt) {
+static void processButtons(time_t startTime) {
+    buttonCurState = digitalRead(BUTTON_PIN);
+    if(buttonCurState != buttonPreState && buttonChangeTime == 0) {
+        buttonChangeTime = time(NULL);
+    }
+    if(buttonChangeTime != 0 && difftime(startTime, buttonChangeTime) >= BUTTON_DEBOUNCE_DELAY) {
+        if(buttonCurState != buttonPreState) {
+            if(++state > STATE_LAST) state = STATE_CLEAR; // Advance to next state, wrap around after #8
+        }
+        buttonPreState = buttonCurState;
+        buttonChangeTime = 0;
+    }
+}
+
+static void displayErrorCode(int errorCode, double dt) {
     for(int i=0; i<errorCode; i++) {
         analogWrite(INTERNAL_LED, 255);
         delay(200);
@@ -168,12 +181,12 @@ void displayErrorCode(int errorCode, double dt) {
     delay(500);
 }
 
-void animatorReset(Animator *p_anim, double dt) {
+static void animatorReset(animator_handle_t *p_anim, double dt) {
     p_anim->frameIndex = 0;
     p_anim->elapsed = 0.0;
 }
 
-int colorWipeAnimation(Animator* p_anim, double dt) {
+static int colorWipeAnimation(animator_handle_t* p_anim, double dt) {
     strip.setPixelColor(p_anim->frameIndex, p_anim->animData->frames[p_anim->frameIndex]);
     strip.show();
     return ERROR_NONE;
@@ -184,7 +197,7 @@ int colorWipeAnimation(Animator* p_anim, double dt) {
 // (as a single 'packed' 32-bit value, which you can get by calling
 // strip.Color(red, green, blue) as shown in the loop() function above),
 // and a delay time (in milliseconds) between pixels.
-void colorWipe(uint32_t color, int wait) {
+static void colorWipe(uint32_t color, int wait) {
   for(int i=0; i<strip.numPixels(); i++) { // For each pixel in strip...
     strip.setPixelColor(i, color);         //  Set pixel's color (in RAM)
     strip.show();                          //  Update strip to match
@@ -195,7 +208,7 @@ void colorWipe(uint32_t color, int wait) {
 // Theater-marquee-style chasing lights. Pass in a color (32-bit value,
 // a la strip.Color(r,g,b) as mentioned above), and a delay time (in ms)
 // between frames.
-void theaterChase(uint32_t color, int wait) {
+static void theaterChase(uint32_t color, int wait) {
   for(int a=0; a<10; a++) {  // Repeat 10 times...
     for(int b=0; b<3; b++) { //  'b' counts from 0 to 2...
       strip.clear();         //   Set all pixels in RAM to 0 (off)
@@ -210,7 +223,7 @@ void theaterChase(uint32_t color, int wait) {
 }
 
 // Rainbow cycle along whole strip. Pass delay time (in ms) between frames.
-void rainbow(int wait) {
+static void rainbow(int wait) {
   // Hue of first pixel runs 3 complete loops through the color wheel.
   // Color wheel has a range of 65536 but it's OK if we roll over, so
   // just count from 0 to 3*65536. Adding 256 to firstPixelHue each time
@@ -234,7 +247,7 @@ void rainbow(int wait) {
 }
 
 // Rainbow-enhanced theater marquee. Pass delay time (in ms) between frames.
-void theaterChaseRainbow(int wait) {
+static void theaterChaseRainbow(int wait) {
   int firstPixelHue = 0;     // First pixel starts at red (hue 0)
   for(int a=0; a<30; a++) {  // Repeat 30 times...
     for(int b=0; b<3; b++) { //  'b' counts from 0 to 2...
