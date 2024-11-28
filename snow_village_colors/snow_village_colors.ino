@@ -1,6 +1,8 @@
 #include <time.h>
 #include <Adafruit_NeoPixel.h>
 #include <stdbool.h>
+#include "./buttons.h"
+
 #ifdef __AVR__
   #include <avr/power.h>
 #endif
@@ -26,8 +28,6 @@
 #define ERROR_NONE 1
 #define ERROR_TEST 10
 
-#define BUTTON_DEBOUNCE_DELAY  20
-
 static const uint32_t BLACK = Adafruit_NeoPixel::Color(0, 0, 0);
 static const uint32_t WHITE = Adafruit_NeoPixel::Color(127, 127, 127);
 static const uint32_t RED = Adafruit_NeoPixel::Color(255, 0, 0);
@@ -36,7 +36,7 @@ static const uint32_t BLUE = Adafruit_NeoPixel::Color(0, 255,   0);
 static const uint32_t RED_HALF = Adafruit_NeoPixel::Color(127,   0,   0);
 static const uint32_t BLUE_HALF = Adafruit_NeoPixel::Color(0,   0, 127);
 
-typedef struct {
+typedef struct animationData_cfg{
     uint32_t frames[NUMPIXELS];
     uint16_t frameTimes[NUMPIXELS];
     uint8_t keyframe;
@@ -44,7 +44,7 @@ typedef struct {
     bool repeat;
 } animationData_cfg_t;
 
-typedef struct {
+typedef struct animator_handle{
     Adafruit_NeoPixel *p_strip;
     animationData_cfg_t *animData;
     uint32_t frameIndex;
@@ -52,16 +52,6 @@ typedef struct {
     void (*reset)(animator_handle_t*, double dt);
     void (*update)(animator_handle_t*, double dt);
 } animator_handle_t;
-
-typedef void (*buttonPressHandler_t)(time_t);
-
-typedef struct {
-    bool   peState = HIGH,
-    bool   curState = HIGH,
-    time_t changeTime;
-    buttonPressHandler_t handlers[8],
-    unsigned int handlers,
-} button_handle_t;
 
 static void animatorReset(animator_handle_t *, double);
 static int colorWipeAnimation(animator_handle_t*, double);
@@ -89,7 +79,7 @@ static animationData_cfg_t animData = {
 static animator_handle_t animator = {
     &strip,
     &animData,
-    0, 0.0, animatorReset, colorWipeAnimation
+    0, 0.0, &animatorReset, &colorWipeAnimation
 };
 
 void setup() {
