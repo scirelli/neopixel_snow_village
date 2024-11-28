@@ -36,7 +36,7 @@ static const uint32_t BLUE = Adafruit_NeoPixel::Color(0, 255,   0);
 static const uint32_t RED_HALF = Adafruit_NeoPixel::Color(127,   0,   0);
 static const uint32_t BLUE_HALF = Adafruit_NeoPixel::Color(0,   0, 127);
 
-typedef struct animationData_cfg{
+typedef struct animationData_cfg_t{
     uint32_t frames[NUMPIXELS];
     uint16_t frameTimes[NUMPIXELS];
     uint8_t keyframe;
@@ -44,7 +44,7 @@ typedef struct animationData_cfg{
     bool repeat;
 } animationData_cfg_t;
 
-typedef struct animator_handle{
+typedef struct animator_handle_t{
     Adafruit_NeoPixel *p_strip;
     animationData_cfg_t *animData;
     uint32_t frameIndex;
@@ -53,7 +53,7 @@ typedef struct animator_handle{
     void (*update)(animator_handle_t*, double dt);
 } animator_handle_t;
 
-static void animatorReset(animator_handle_t *, double);
+static void animatorReset(animator_handle_t*, double);
 static int colorWipeAnimation(animator_handle_t*, double);
 static void processButtons(time_t);
 
@@ -90,7 +90,7 @@ void setup() {
     pinMode(BUTTON_PIN, INPUT_PULLUP);
     strip.show();  // Initialize all pixels to 'off'
     strip.begin();
-    startTime, buttonDown, buttonUp = time(NULL);
+    startTime = time(NULL);
 
     state = STATE_CLEAR;
     buttonPreState = HIGH;
@@ -110,7 +110,7 @@ void loop() {
             strip.show();
             break;
         case STATE_ALL_RED:
-            errorCode = colorWipeAnimation(&animator_handle_t, dif);
+            errorCode = colorWipeAnimation(&animator, dif);
             break;
         case STATE_ALL_GREEN:
             colorWipe(GREEN, 50);
@@ -138,20 +138,6 @@ void loop() {
             break;
     }
     if(errorCode != ERROR_NONE) state = STATE_ERROR;
-}
-
-static void processButtons(time_t startTime) {
-    buttonCurState = digitalRead(BUTTON_PIN);
-    if(buttonCurState != buttonPreState && buttonChangeTime == 0) {
-        buttonChangeTime = time(NULL);
-    }
-    if(buttonChangeTime != 0 && difftime(startTime, buttonChangeTime) >= BUTTON_DEBOUNCE_DELAY) {
-        if(buttonCurState != buttonPreState) {
-            if(++state > STATE_LAST) state = STATE_CLEAR; // Advance to next state, wrap around after #8
-        }
-        buttonPreState = buttonCurState;
-        buttonChangeTime = 0;
-    }
 }
 
 static void displayErrorCode(int errorCode, double dt) {
