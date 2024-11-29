@@ -1,8 +1,9 @@
 #include "./buttons.h"
 
-void initButton(button_handle_t *button){
+void initButton(button_handle_t *const button, int pin, int mode){
     pinMode(button->pin, button->mode);
     button->perState = button->curState = button->normalState = button->mode == INPUT_PULLUP ? HIGH : LOW;// Not really true, user will have to set the normalState depending on pull up/down
+    button->debounceTimer = holdTimer = 0;
 }
 
 void addButtonListener(int type, button_listener_t *btnListener) {

@@ -32,12 +32,11 @@ typedef struct button_listener_t{
     buttonActionHandler_t handler;
 }
 
-static button_handle_t *buttonListeners[BUTTON_HANDLE_TYPES][BUTTON_MAX_LISTENERS];
+static button_listener_t *buttonListeners[BUTTON_HANDLE_TYPES][BUTTON_MAX_LISTENERS];
 static int buttonListenerIdx[] = {0, 0, 0};
 
 
-void init(button_handle_t *button);
-
+void initButton(button_handle_t *const button, int pin, int mode);
 void addButtonListener(int type, button_listener_t *btnListener);
 void processButtons(time_t startTime);
 
