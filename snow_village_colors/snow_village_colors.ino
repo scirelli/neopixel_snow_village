@@ -66,7 +66,6 @@ static void processButtons(time_t);
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 static Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
-static bool   buttonPreState = HIGH, buttonCurState = HIGH;
 static int    state     = 0;
 static time_t startTime, buttonChangeTime;
 static double dif;
@@ -87,14 +86,11 @@ void setup() {
     #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
         clock_prescale_set(clock_div_1);
     #endif
-    pinMode(BUTTON_PIN, INPUT_PULLUP);
     strip.show();  // Initialize all pixels to 'off'
     strip.begin();
     startTime = time(NULL);
 
     state = STATE_CLEAR;
-    buttonPreState = HIGH;
-    buttonCurState = HIGH;
     errorCode = ERROR_NONE;
 }
 

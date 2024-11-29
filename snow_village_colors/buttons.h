@@ -13,37 +13,38 @@ extern "C"
 #define BUTTON_LISTENER_PRESS 0
 #define BUTTON_LISTENER_DOWN  1
 #define BUTTON_LISTENER_UP    2
-#define BUTTON_LISTENER_TYPES 3
+#define BUTTON_HANDLE_TYPES 3
 
 typedef void (*buttonActionHandler_t)(time_t);
 
-typedef struct button_listener_t{
-    bool   peState = HIGH;
-    bool   curState = HIGH;
-    time_t changeTime;
+typedef struct button_handle_t{
+    bool   normalState;
+    bool   perState;
+    bool   curState;
+    time_t debounceTimer;
+    time_t holdTimer;
     int pin;
+    int mode;
+} button_handle_t;
+
+typedef struct button_listener_t{
+    button_handle_t * buttonHandle;
     buttonActionHandler_t handler;
-} button_listener_t;
-
-static button_listener_t buttonListeners[BUTTON_LISTENER_TYPES][BUTTON_MAX_LISTENERS];
-static int buttonListenerIdx[] ={0, 0, 0};
-
-void addButtonListener(int type, button_listener_t *btnListener) {
 }
 
-void processButtons(time_t startTime) {
-    buttonCurState = digitalRead(BUTTON_PIN);
-    if(buttonCurState != buttonPreState && buttonChangeTime == 0) {
-        buttonChangeTime = time(NULL);
-    }
-    if(buttonChangeTime != 0 && difftime(startTime, buttonChangeTime) >= BUTTON_DEBOUNCE_DELAY) {
-        if(buttonCurState != buttonPreState) {
-            if(++state > STATE_LAST) state = STATE_CLEAR; // Advance to next state, wrap around after #8
-        }
-        buttonPreState = buttonCurState;
-        buttonChangeTime = 0;
-    }
-}
+static button_handle_t *buttonListeners[BUTTON_HANDLE_TYPES][BUTTON_MAX_LISTENERS];
+static int buttonListenerIdx[] = {0, 0, 0};
+
+
+void init(button_handle_t *button);
+
+void addButtonListener(int type, button_listener_t *btnListener);
+void processButtons(time_t startTime);
+
+
+static void processPressButton(time_t startTime, button_listener_t*);
+static void processUpButton(time_t startTime, button_listener_t*);
+static void processDownButton(time_t startTime, button_listener_t*);
 
 
 #ifdef __cplusplus
