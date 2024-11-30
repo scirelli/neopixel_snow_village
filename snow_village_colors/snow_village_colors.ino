@@ -1,4 +1,3 @@
-#include <time.h>
 #include <Adafruit_NeoPixel.h>
 #include <stdbool.h>
 #include "./buttons.h"
@@ -55,7 +54,11 @@ typedef struct animator_handle_t{
 
 static void animatorReset(animator_handle_t*, double);
 static int colorWipeAnimation(animator_handle_t*, double);
-static void processButtons(time_t);
+static void processButtons(unsigned long);
+static void buttonUp(unsigned long);
+static void buttonDown(unsigned long);
+static void toggleLED(unsigned long);
+static void blinkBuiltInLED(unsigned long, int);
 
 // Argument 1 = Number of pixels in NeoPixel strip
 // Argument 2 = Arduino pin number (most are valid)
@@ -66,9 +69,9 @@ static void processButtons(time_t);
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 static Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
-static int    state     = 0;
-static time_t startTime, buttonChangeTime;
+static unsigned long startTime, buttonChangeTime;
 static double dif;
+static int    state     = STATE_CLEAR;
 static int    errorCode = ERROR_NONE;
 static animationData_cfg_t animData = {
     {RED , BLACK, GREEN, BLACK, BLUE, BLACK, BLACK, BLACK},
@@ -80,26 +83,32 @@ static animator_handle_t animator = {
     &animData,
     0, 0.0, &animatorReset, &colorWipeAnimation
 };
+static button_handle_t myButton;
 
 void setup() {
     pinMode(INTERNAL_LED, OUTPUT);
+    pinMode(LED_BUILTIN, OUTPUT);
     #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
         clock_prescale_set(clock_div_1);
     #endif
     strip.show();  // Initialize all pixels to 'off'
     strip.begin();
-    startTime = time(NULL);
+    startTime = millis();
 
     state = STATE_CLEAR;
     errorCode = ERROR_NONE;
+    btn_initButton(&myButton, BUTTON_PIN, INPUT_PULLUP, buttonDown, toggleLED, buttonPress);
+    btn_addButton(&myButton);
 }
 
 void loop() {
-    dif=difftime(time(NULL),startTime);
-    startTime = time(NULL);
+    dif = millis() - startTime;
+    startTime = millis();
+    btn_processButtons(startTime);
+}
 
-    processButtons(startTime);
-
+static void buttonDown(unsigned long startTime){
+    if(++state > STATE_LAST) state = STATE_CLEAR; // Advance to next state, wrap around after #8
     switch(state) {
         case STATE_CLEAR:
             strip.clear();
@@ -130,27 +139,34 @@ void loop() {
             rainbow(10);
             break;
         case STATE_ERROR:
-            displayErrorCode(errorCode, dif);
+            blinkBuiltInLED(startTime, errorCode);
             break;
     }
     if(errorCode != ERROR_NONE) state = STATE_ERROR;
 }
 
-static void displayErrorCode(int errorCode, double dt) {
-    for(int i=0; i<errorCode; i++) {
-        analogWrite(INTERNAL_LED, 255);
-        delay(200);
-        analogWrite(INTERNAL_LED, 0);
-        delay(200);
+static void buttonUp(unsigned long startTime){}
+
+static void buttonPress(unsigned long startTime) {}
+
+static void blinkBuiltInLED(unsigned long curTime, int code) {
+    static unsigned long d = 0;
+    unsigned long delta =  curTime - d;
+
+    if(d == 0){
+        digitalWrite(LED_BUILTIN, HIGH);
+        d = millis();
+    }else if(delta >= 1000 && delta <= 2000){
+        digitalWrite(LED_BUILTIN, LOW);
+    }else if(delta > 2000) {
+        d = 0;
     }
-    delay(300);
-    for(int i=0; i<3; i++) {
-        analogWrite(INTERNAL_LED, 255);
-        delay(20);
-        analogWrite(INTERNAL_LED, 0);
-        delay(20);
-    }
-    delay(500);
+}
+
+static void toggleLED(unsigned long _) {
+    static bool t = LOW;
+    t = !t;
+    digitalWrite(LED_BUILTIN, t);
 }
 
 static void animatorReset(animator_handle_t *p_anim, double dt) {

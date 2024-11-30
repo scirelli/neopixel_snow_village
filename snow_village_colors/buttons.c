@@ -1,62 +1,43 @@
 #include "./buttons.h"
 
-void initButton(button_handle_t *const button, int pin, int mode){
-    pinMode(button->pin, button->mode);
-    button->perState = button->curState = button->normalState = button->mode == INPUT_PULLUP ? HIGH : LOW;// Not really true, user will have to set the normalState depending on pull up/down
-    button->debounceTimer = holdTimer = 0;
+void btn_initButton(button_handle_t *const button, int pin, int mode, buttonActionHandler_t down, buttonActionHandler_t up, buttonActionHandler_t press){
+    button->pin = pin;
+    button->mode = mode;
+    button->downHandler = down;
+    button->upHandler = up;
+    button->pressHandler = press;
+    button->debounceTimer = button->holdTimer = 0;
+    button->preState = button->curState = button->normalState = mode == INPUT_PULLUP ? HIGH : LOW;// Not really true, user will have to set the normalState depending on pull up/down
+
+    pinMode(pin, mode);
 }
 
-void addButtonListener(int type, button_listener_t *btnListener) {
-    if(type < 0 || type >= BUTTON_LISTENER_TYPES || buttonListenerIdx[type] >= BUTTON_MAX_LISTENERS){
-        return;
-    }
-    buttonListeners[type][buttonListenerIdx[type]++] = btnListener;
+void btn_addButton(button_handle_t *const button){
+    buttons[buttonsIdx++] = button;
 }
 
-void processButtons(time_t startTime) {
-    for(int t=0; t<BUTTON_LISTENER_TYPES; t++){
-        for(int j=0; j<buttonListenerIdx[t]; j++){
-            switch(t){
-            case BUTTON_LISTENER_PRESS:
-                processPressButton(startTime, buttonListeners[t][j]);
-                break;
-            case BUTTON_LISTENER_DOWN:
-                processDownButton(startTime, buttonListeners[t][j]);
-                break;
-            case BUTTON_LISTENER_UP:
-                processUpButton(startTime, buttonListeners[t][j]);
-                break;
-            }
-        }
+void btn_processButtons(unsigned long startTime) {
+    for(int i=0; i<buttonsIdx; i++){
+        processButton(startTime, buttons[i]);
     }
 }
 
-static void processPressButton(time_t starTime, button_listener_t *buttonListener){
-    buttonListener->curState = digitalRead(buttonListener->pin);
+static void processButton(unsigned long startTime, button_handle_t * const button){
+    button->curState = digitalRead(button->pin);
 
-    if(buttonListener->curState != buttonListener->preState && buttonListener->debounceTimer == 0) {
-        buttonListener->debounceTimer = time(NULL);
-    }
-    if(
-        buttonListener->curState != buttonListener->preState &&
-        buttonListener->debounceTimer != 0 &&
-        difftime(startTime, buttonListener->debounceTime) > BUTTON_DEBOUNCE_DELAY
+    if(button->curState != button->preState && button->debounceTimer == 0) {
+        button->debounceTimer = millis();
+    }else if(
+        button->curState != button->preState &&
+        (long)(startTime - button->debounceTimer) > BUTTON_DEBOUNCE_DELAY
     ) {
-        buttonListener->debounceTimer = 0;
-        buttonListener->preState = buttonListener->curState;
-    }
-
-    if(buttonChangeTime != 0 && difftime(startTime, buttonChangeTime) >= BUTTON_DEBOUNCE_DELAY) {
-        if(buttonCurState != buttonPreState) {
-            if(++state > STATE_LAST) state = STATE_CLEAR; // Advance to next state, wrap around after #8
+        button->debounceTimer = 0;
+        button->preState = button->curState;
+        if(button->curState != button->normalState && button->downHandler != NULL){
+            button->downHandler(startTime);
+        }else if(button->curState == button->normalState){
+            if(button->upHandler != NULL) button->upHandler(startTime);
+            if(button->pressHandler != NULL) button->pressHandler(startTime);
         }
-        buttonPreState = buttonCurState;
-        buttonChangeTime = 0;
     }
-}
-
-static void processUpButton(time_t starTime, button_listener_t *buttonListener){
-}
-
-static void processDownButton(time_t starTime, button_listener_t *buttonListener){
 }

@@ -1,6 +1,7 @@
 #ifndef _BUTTONS_H
 #define _BUTTONS_H
 #include <stdbool.h>
+#include "Arduino.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -8,42 +9,38 @@ extern "C"
 #endif
 
 #define BUTTON_DEBOUNCE_DELAY  20
+#define BUTTON_MAX_BUTTONS 1
 
 #define BUTTON_MAX_LISTENERS  16
 #define BUTTON_LISTENER_PRESS 0
 #define BUTTON_LISTENER_DOWN  1
 #define BUTTON_LISTENER_UP    2
-#define BUTTON_HANDLE_TYPES 3
+#define BUTTON_LISTENER_TYPES 3
 
-typedef void (*buttonActionHandler_t)(time_t);
+typedef void (*buttonActionHandler_t)(unsigned long);
 
 typedef struct button_handle_t{
     bool   normalState;
-    bool   perState;
+    bool   preState;
     bool   curState;
-    time_t debounceTimer;
-    time_t holdTimer;
+    unsigned long debounceTimer;
+    unsigned long holdTimer;
     int pin;
     int mode;
+    buttonActionHandler_t pressHandler;
+    buttonActionHandler_t upHandler;
+    buttonActionHandler_t downHandler;
 } button_handle_t;
 
-typedef struct button_listener_t{
-    button_handle_t * buttonHandle;
-    buttonActionHandler_t handler;
-}
+static button_handle_t *buttons[BUTTON_MAX_BUTTONS];
+static uint8_t buttonsIdx = 0;
 
-static button_listener_t *buttonListeners[BUTTON_HANDLE_TYPES][BUTTON_MAX_LISTENERS];
-static int buttonListenerIdx[] = {0, 0, 0};
-
-
-void initButton(button_handle_t *const button, int pin, int mode);
-void addButtonListener(int type, button_listener_t *btnListener);
-void processButtons(time_t startTime);
+void btn_initButton(button_handle_t *const button, int pin, int mode, buttonActionHandler_t down, buttonActionHandler_t up, buttonActionHandler_t press);
+void btn_addButton(button_handle_t * const button);
+void btn_processButtons(unsigned long startTime);
 
 
-static void processPressButton(time_t startTime, button_listener_t*);
-static void processUpButton(time_t startTime, button_listener_t*);
-static void processDownButton(time_t startTime, button_listener_t*);
+static void processButton(unsigned long startTime, button_handle_t * const button);
 
 
 #ifdef __cplusplus
