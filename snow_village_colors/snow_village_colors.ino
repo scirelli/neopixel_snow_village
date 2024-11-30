@@ -12,17 +12,18 @@
 #define DELAYVAL 500
 #define BUTTON_PIN   2
 
-#define STATE_ERROR -1
-#define STATE_CLEAR     0
-#define STATE_ALL_RED   1
-#define STATE_ALL_GREEN 2
-#define STATE_ALL_BLUE  3
-#define STATE_THEATER_WHITE    4
-#define STATE_THEATER_RED      5
-#define STATE_THEATER_BLUE     6
-#define STATE_THEATER_RAINBOW  7
-#define STATE_RAINBOW 8
-#define STATE_LAST 8
+#define STATE_PAUSE                -2
+#define STATE_ERROR                -1
+#define STATE_ANIM_ALL_RED          0
+#define STATE_ANIM_ALL_GREEN        1
+#define STATE_ANIM_ALL_BLUE         2
+#define STATE_ANIM_THEATER_WHITE    3
+#define STATE_ANIM_THEATER_RED      4
+#define STATE_ANIM_THEATER_BLUE     5
+#define STATE_ANIM_THEATER_RAINBOW  6
+#define STATE_ANIM_RAINBOW          7
+#define STATE_ANIM_CLEAR            8
+#define STATE_LAST                  8
 
 #define ERROR_NONE 1
 #define ERROR_TEST 10
@@ -31,34 +32,18 @@ static const uint32_t BLACK = Adafruit_NeoPixel::Color(0, 0, 0);
 static const uint32_t WHITE = Adafruit_NeoPixel::Color(127, 127, 127);
 static const uint32_t RED = Adafruit_NeoPixel::Color(255, 0, 0);
 static const uint32_t GREEN = Adafruit_NeoPixel::Color(0, 255, 0);
-static const uint32_t BLUE = Adafruit_NeoPixel::Color(0, 255,   0);
+static const uint32_t BLUE = Adafruit_NeoPixel::Color(0, 0, 255);
 static const uint32_t RED_HALF = Adafruit_NeoPixel::Color(127,   0,   0);
 static const uint32_t BLUE_HALF = Adafruit_NeoPixel::Color(0,   0, 127);
 
-typedef struct animationData_cfg_t{
-    uint32_t frames[NUMPIXELS];
-    uint16_t frameTimes[NUMPIXELS];
-    uint8_t keyframe;
-    const uint8_t frameCount;
-    bool repeat;
-} animationData_cfg_t;
-
-typedef struct animator_handle_t{
-    Adafruit_NeoPixel *p_strip;
-    animationData_cfg_t *animData;
-    uint32_t frameIndex;
-    double elapsed;
-    void (*reset)(animator_handle_t*, double dt);
-    void (*update)(animator_handle_t*, double dt);
-} animator_handle_t;
-
-static void animatorReset(animator_handle_t*, double);
-static int colorWipeAnimation(animator_handle_t*, double);
+static void noop(unsigned long);
 static void processButtons(unsigned long);
 static void buttonUp(unsigned long);
 static void buttonDown(unsigned long);
 static void toggleLED(unsigned long);
 static void blinkBuiltInLED(unsigned long, int);
+static void colorWipe(unsigned long, uint32_t);
+
 
 // Argument 1 = Number of pixels in NeoPixel strip
 // Argument 2 = Arduino pin number (most are valid)
@@ -71,18 +56,9 @@ static void blinkBuiltInLED(unsigned long, int);
 static Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 static unsigned long startTime, buttonChangeTime;
 static double dif;
-static int    state     = STATE_CLEAR;
+static int    state     = STATE_ANIM_CLEAR;
+static int    buttonPressCnt = STATE_ANIM_CLEAR;
 static int    errorCode = ERROR_NONE;
-static animationData_cfg_t animData = {
-    {RED , BLACK, GREEN, BLACK, BLUE, BLACK, BLACK, BLACK},
-    {1000, 10   , 1000 , 10   , 1000, 10   , 1000 , 10   },
-    0, NUMPIXELS, false
-};
-static animator_handle_t animator = {
-    &strip,
-    &animData,
-    0, 0.0, &animatorReset, &colorWipeAnimation
-};
 static button_handle_t myButton;
 
 void setup() {
@@ -95,7 +71,7 @@ void setup() {
     strip.begin();
     startTime = millis();
 
-    state = STATE_CLEAR;
+    state = STATE_ANIM_CLEAR;
     errorCode = ERROR_NONE;
     btn_initButton(&myButton, BUTTON_PIN, INPUT_PULLUP, buttonDown, toggleLED, buttonPress);
     btn_addButton(&myButton);
@@ -105,45 +81,63 @@ void loop() {
     dif = millis() - startTime;
     startTime = millis();
     btn_processButtons(startTime);
+    animate(startTime);
 }
 
-static void buttonDown(unsigned long startTime){
-    if(++state > STATE_LAST) state = STATE_CLEAR; // Advance to next state, wrap around after #8
+static void animate(unsigned long startTime) {
     switch(state) {
-        case STATE_CLEAR:
-            strip.clear();
-            strip.show();
-            break;
-        case STATE_ALL_RED:
-            errorCode = colorWipeAnimation(&animator, dif);
-            break;
-        case STATE_ALL_GREEN:
-            colorWipe(GREEN, 50);
-            break;
-        case STATE_ALL_BLUE:
-            colorWipe(BLUE, 50);
-            break;
-        case STATE_THEATER_WHITE:
-            theaterChase(WHITE, 50);
-            break;
-        case STATE_THEATER_RED:
-            theaterChase(RED_HALF, 50);
-            break;
-        case STATE_THEATER_BLUE:
-            theaterChase(BLUE_HALF, 50);
-            break;
-        case STATE_THEATER_RAINBOW:
-            theaterChaseRainbow(50);
-            break;
-        case STATE_RAINBOW:
-            rainbow(10);
-            break;
         case STATE_ERROR:
             blinkBuiltInLED(startTime, errorCode);
+            break;
+        case STATE_PAUSE:
+            delay(10);
+            break;
+        case STATE_ANIM_CLEAR:
+            strip.clear();
+            strip.show();
+            state = STATE_PAUSE;
+            break;
+        case STATE_ANIM_ALL_RED:
+            colorWipe(startTime, RED);
+            break;
+        case STATE_ANIM_ALL_GREEN:
+            colorWipe(startTime, GREEN);
+            break;
+        case STATE_ANIM_ALL_BLUE:
+            colorWipe(startTime, BLUE);
+            break;
+        case STATE_ANIM_THEATER_WHITE:
+            theaterChase(WHITE, 50);
+            state = STATE_PAUSE;
+            break;
+        case STATE_ANIM_THEATER_RED:
+            theaterChase(RED_HALF, 50);
+            state = STATE_PAUSE;
+            break;
+        case STATE_ANIM_THEATER_BLUE:
+            theaterChase(BLUE_HALF, 50);
+            state = STATE_PAUSE;
+            break;
+        case STATE_ANIM_THEATER_RAINBOW:
+            theaterChaseRainbow(50);
+            state = STATE_PAUSE;
+            break;
+        case STATE_ANIM_RAINBOW:
+            rainbow(10);
+            state = STATE_PAUSE;
             break;
     }
     if(errorCode != ERROR_NONE) state = STATE_ERROR;
 }
+
+static void buttonDown(unsigned long startTime){
+    if(++buttonPressCnt > STATE_LAST){
+        buttonPressCnt = STATE_ANIM_ALL_RED;
+    }
+    state = buttonPressCnt;
+}
+
+static void noop(unsigned long t){}
 
 static void buttonUp(unsigned long startTime){}
 
@@ -169,28 +163,19 @@ static void toggleLED(unsigned long _) {
     digitalWrite(LED_BUILTIN, t);
 }
 
-static void animatorReset(animator_handle_t *p_anim, double dt) {
-    p_anim->frameIndex = 0;
-    p_anim->elapsed = 0.0;
-}
-
-static int colorWipeAnimation(animator_handle_t* p_anim, double dt) {
-    strip.setPixelColor(p_anim->frameIndex, p_anim->animData->frames[p_anim->frameIndex]);
-    strip.show();
-    return ERROR_NONE;
-}
-
-// Fill strip pixels one after another with a color. Strip is NOT cleared
-// first; anything there will be covered pixel by pixel. Pass in color
-// (as a single 'packed' 32-bit value, which you can get by calling
-// strip.Color(red, green, blue) as shown in the loop() function above),
-// and a delay time (in milliseconds) between pixels.
-static void colorWipe(uint32_t color, int wait) {
-  for(int i=0; i<strip.numPixels(); i++) { // For each pixel in strip...
-    strip.setPixelColor(i, color);         //  Set pixel's color (in RAM)
-    strip.show();                          //  Update strip to match
-    delay(wait);                           //  Pause for a moment
-  }
+static void colorWipe(unsigned long t, uint32_t color) {
+    static int wait = 0, i=0;
+    if(wait == 0){
+        strip.setPixelColor(i, color);
+        strip.show();
+        wait = t;
+        if(++i>=strip.numPixels()){
+            i=0;
+            state = STATE_PAUSE;
+            wait = 0;
+        }
+    }
+    if((t - wait) > 50) wait = 0;
 }
 
 // Theater-marquee-style chasing lights. Pass in a color (32-bit value,
