@@ -13,3 +13,12 @@ Make sure your user is in the `dialout` group. `usermod -a -G dialout $USER`
 SUBSYSTEMS=="usb", ATTRS{product}=="USBtiny", ATTRS{idProduct}=="0c9f", ATTRS{idVendor}=="1781", MODE="0660", GROUP="dialout", SYMLINK+="ATtiny"
 SUBSYSTEMS=="usb", ATTRS{product}=="Trinket", ATTRS{idProduct}=="0c9f", ATTRS{idVendor}=="1781", MODE="0660", GROUP="dialout", SYMLINK+="Trinket"
 ```
+
+## To setup Arduino IDE
+https://learn.adafruit.com/introducing-trinket/setting-up-with-arduino-ide
+1. Board setup
+    Add the Adafruit Board Support package!
+    Paste
+    `https://adafruit.github.io/arduino-board-index/package_adafruit_index.json`
+    Into the "Additional Board Managers URLS" box
+2. Then, select USBtinyISP from the Tools->Programmer sub-menu
