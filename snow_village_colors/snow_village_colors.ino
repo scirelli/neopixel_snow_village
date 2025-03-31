@@ -1,7 +1,6 @@
 #include <Adafruit_NeoPixel.h>
-#include <stdbool.h>
 #include "./buttons.h"
-#include "./segmentTransition.h"
+#include "./colorTransition.h"
 
 #ifdef __AVR__
   #include <avr/power.h>
@@ -31,39 +30,39 @@
 #define ERROR_NONE 1
 #define ERROR_TEST 10
 
-static const uint32_t BLACK = Adafruit_NeoPixel::Color(0, 0, 0);
-static const uint32_t WHITE = Adafruit_NeoPixel::Color(127, 127, 127);
-static const uint32_t RED = Adafruit_NeoPixel::Color(255, 0, 0);
-static const uint32_t GREEN = Adafruit_NeoPixel::Color(0, 255, 0);
-static const uint32_t BLUE = Adafruit_NeoPixel::Color(0, 0, 255);
-static const uint32_t RED_HALF = Adafruit_NeoPixel::Color(127,   0,   0);
-static const uint32_t BLUE_HALF = Adafruit_NeoPixel::Color(0,   0, 127);
+typedef unsigned long time_t;
+
 static const int ORDER_OF_STATES[] = {
     STATE_ANIM_CLEAR,
     STATE_TEST,
     STATE_ANIM_ALL_RED,
     STATE_ANIM_ALL_GREEN,
     STATE_ANIM_ALL_BLUE,
+    /*
     STATE_ANIM_THEATER_WHITE,
     STATE_ANIM_THEATER_RED,
     STATE_ANIM_THEATER_BLUE,
     STATE_ANIM_THEATER_RAINBOW,
     STATE_ANIM_RAINBOW,
+    */
 };
 
-static void animate(unsigned long);
-static void noop(unsigned long);
-static void processButtons(unsigned long);
-static void buttonUp(unsigned long);
-static void buttonDown(unsigned long);
-static void buttonPress(unsigned long);
-static void toggleLED(unsigned long);
-static void blinkBuiltInLED(unsigned long, int);
-static void colorWipe(unsigned long, uint32_t);
+static void animate(time_t);
+static void noop(time_t);
+static void processButtons(time_t);
+static void buttonUp(time_t);
+static void buttonDown(time_t);
+static void buttonPress(time_t);
+static void toggleLED(time_t);
+static void blinkBuiltInLED(time_t);
+static void colorWipe(time_t, uint32_t);
+/*
 static void theaterChaseRainbow(int);
 static void rainbow(int);
 static void theaterChase(uint32_t, int);
-static void interpo(uint32_t, uint32_t, unsigned long);
+*/
+static void interpo(uint32_t, uint32_t, time_t);
+static void test(void);
 
 // Argument 1 = Number of pixels in NeoPixel strip
 // Argument 2 = Arduino pin number (most are valid)
@@ -74,7 +73,7 @@ static void interpo(uint32_t, uint32_t, unsigned long);
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 static Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
-static unsigned long startTime;
+static time_t startTime;
 static int    state = ORDER_OF_STATES[0];
 static int    buttonPressCnt = 0; //Index into the ORDER_OF_STATES
 static int    errorCode = ERROR_NONE;
@@ -104,7 +103,7 @@ void loop()
     animate(startTime);
 }
 
-static void animate(unsigned long startTime)
+static void animate(time_t startTime)
 {
     switch(state) {
         case STATE_ERROR:
@@ -119,56 +118,89 @@ static void animate(unsigned long startTime)
             state = STATE_PAUSE;
             break;
         case STATE_ANIM_ALL_RED:
-            colorWipe(startTime, RED);
+            colorWipe(startTime, Adafruit_NeoPixel::Color(255, 0, 0));
             break;
         case STATE_ANIM_ALL_GREEN:
-            colorWipe(startTime, GREEN);
+            colorWipe(startTime, Adafruit_NeoPixel::Color(0, 255, 0));
             break;
         case STATE_ANIM_ALL_BLUE:
-            colorWipe(startTime, BLUE);
+            colorWipe(startTime, Adafruit_NeoPixel::Color(0, 0, 255));
             break;
+        /*
         case STATE_ANIM_THEATER_WHITE:
-            theaterChase(WHITE, 50);
+            //theaterChase(WHITE, 50);
             state = STATE_PAUSE;
             break;
         case STATE_ANIM_THEATER_RED:
-            theaterChase(RED_HALF, 50);
+            //theaterChase(RED_HALF, 50);
             state = STATE_PAUSE;
             break;
         case STATE_ANIM_THEATER_BLUE:
-            theaterChase(BLUE_HALF, 50);
+            //theaterChase(BLUE_HALF, 50);
             state = STATE_PAUSE;
             break;
         case STATE_ANIM_THEATER_RAINBOW:
-            theaterChaseRainbow(50);
+            //theaterChaseRainbow(50);
             state = STATE_PAUSE;
             break;
         case STATE_ANIM_RAINBOW:
-            rainbow(10);
+            //rainbow(10);
             state = STATE_PAUSE;
             break;
+        */
         case STATE_TEST:
-            interpo(Adafruit_NeoPixel::Color(0, 0, 0), Adafruit_NeoPixel::Color(255, 0, 0), startTime);
+            test();
+            state = STATE_PAUSE;
             break;
     }
     if(errorCode != ERROR_NONE) state = STATE_ERROR;
 }
 
-static void buttonDown(unsigned long startTime) {}
-static void noop(unsigned long t){}
-static void buttonUp(unsigned long startTime){}
+static void buttonDown(time_t startTime) {}
+static void noop(time_t t){}
+static void buttonUp(time_t startTime){}
 
-static void buttonPress(unsigned long startTime) {
+static void buttonPress(time_t startTime) {
     if(++buttonPressCnt >= COUNT_OF(ORDER_OF_STATES) || buttonPressCnt < 0) {
         buttonPressCnt = 0;
     }
     state = ORDER_OF_STATES[buttonPressCnt];
 }
 
-static void blinkBuiltInLED(unsigned long curTime, int code)
+static void test()
 {
-    static unsigned long d = 0;
-    unsigned long delta =  curTime - d;
+    //interpo(Adafruit_NeoPixel::Color(0, 0, 0), Adafruit_NeoPixel::Color(255, 0, 0), startTime);
+    float hsv[3];
+    color_t col;
+
+    rgb_to_hsv(255, 0, 0, hsv);
+    hsv[0] = hsv[0] * 65536;
+    hsv[1] = hsv[1] * 256;
+    hsv[2] = hsv[2] * 256;
+    col = strip.ColorHSV((hue)hsv[0], (sat)hsv[1], (val)hsv[2]);
+    strip.setPixelColor(0, strip.gamma32(col));
+
+    rgb_to_hsv(0, 255, 0, hsv);
+    hsv[0] = hsv[0] * 65536;
+    hsv[1] = hsv[1] * 256;
+    hsv[2] = hsv[2] * 256;
+    col = strip.ColorHSV((hue)hsv[0], (sat)hsv[1], (val)hsv[2]);
+    strip.setPixelColor(1, strip.gamma32(col));
+
+    rgb_to_hsv(0, 0, 255, hsv);
+    hsv[0] = hsv[0] * 65536;
+    hsv[1] = hsv[1] * 256;
+    hsv[2] = hsv[2] * 256;
+    col = strip.ColorHSV((hue)hsv[0], (sat)hsv[1], (val)hsv[2]);
+    strip.setPixelColor(2, strip.gamma32(col));
+
+    strip.show();
+}
+
+static void blinkBuiltInLED(time_t curTime, int code)
+{
+    static time_t d = 0;
+    time_t delta =  curTime - d;
 
     if(d == 0){
         digitalWrite(LED_BUILTIN, HIGH);
@@ -180,14 +212,13 @@ static void blinkBuiltInLED(unsigned long curTime, int code)
     }
 }
 
-static void toggleLED(unsigned long _)
+static void toggleLED(time_t _)
 {
     static bool t = LOW;
     t = !t;
     digitalWrite(LED_BUILTIN, t);
 }
-
-static void interpo(uint32_t color1, uint32_t color2, unsigned long time)
+static void interpo(uint32_t color1, uint32_t color2, time_t time)
 {
     for(int i=0; i<strip.numPixels(); i++) {
         strip.setPixelColor(i, color2);
@@ -196,7 +227,7 @@ static void interpo(uint32_t color1, uint32_t color2, unsigned long time)
     state = STATE_PAUSE;
 }
 
-static void colorWipe(unsigned long t, uint32_t color)
+static void colorWipe(time_t t, uint32_t color)
 {
     static int wait = 0, i=0;
     if(wait == 0){
@@ -212,6 +243,7 @@ static void colorWipe(unsigned long t, uint32_t color)
     if((t - wait) > 50) wait = 0;
 }
 
+/*
 // Theater-marquee-style chasing lights. Pass in a color (32-bit value,
 // a la strip.Color(r,g,b) as mentioned above), and a delay time (in ms)
 // between frames.
@@ -277,3 +309,4 @@ static void theaterChaseRainbow(int wait)
     }
   }
 }
+*/
