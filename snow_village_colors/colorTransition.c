@@ -1,5 +1,4 @@
 #include "./colorTransition.h"
-
 /**
  * Converts RGB to HSV. Scans hue degrees 0 to 1.
  */

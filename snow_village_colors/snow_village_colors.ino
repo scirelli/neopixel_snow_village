@@ -51,17 +51,17 @@ static void animate(time_t);
 static void noop(time_t);
 static void processButtons(time_t);
 static void buttonUp(time_t);
-static void buttonDown(time_t);
 static void buttonPress(time_t);
 static void toggleLED(time_t);
-static void blinkBuiltInLED(time_t);
 static void colorWipe(time_t, uint32_t);
 /*
+static void buttonDown(time_t);
+static void blinkBuiltInLED(time_t);
 static void theaterChaseRainbow(int);
 static void rainbow(int);
 static void theaterChase(uint32_t, int);
-*/
 static void interpo(uint32_t, uint32_t, time_t);
+*/
 static void test(void);
 
 // Argument 1 = Number of pixels in NeoPixel strip
@@ -92,7 +92,7 @@ void setup()
 
     state = STATE_ANIM_CLEAR;
     errorCode = ERROR_NONE;
-    btn_initButton(&myButton, BUTTON_PIN, INPUT_PULLUP, buttonDown, toggleLED, buttonPress);
+    btn_initButton(&myButton, BUTTON_PIN, INPUT_PULLUP, noop, toggleLED, buttonPress);
     btn_addButton(&myButton);
 }
 
@@ -107,7 +107,7 @@ static void animate(time_t startTime)
 {
     switch(state) {
         case STATE_ERROR:
-            blinkBuiltInLED(startTime, errorCode);
+            //blinkBuiltInLED(startTime, errorCode);
             break;
         case STATE_PAUSE:
             delay(10);
@@ -156,9 +156,9 @@ static void animate(time_t startTime)
     if(errorCode != ERROR_NONE) state = STATE_ERROR;
 }
 
-static void buttonDown(time_t startTime) {}
 static void noop(time_t t){}
-static void buttonUp(time_t startTime){}
+//static void buttonDown(time_t startTime) {}
+//static void buttonUp(time_t startTime){}
 
 static void buttonPress(time_t startTime) {
     if(++buttonPressCnt >= COUNT_OF(ORDER_OF_STATES) || buttonPressCnt < 0) {
@@ -169,7 +169,6 @@ static void buttonPress(time_t startTime) {
 
 static void test()
 {
-    //interpo(Adafruit_NeoPixel::Color(0, 0, 0), Adafruit_NeoPixel::Color(255, 0, 0), startTime);
     float hsv[3];
     color_t col;
 
@@ -197,6 +196,7 @@ static void test()
     strip.show();
 }
 
+/*
 static void blinkBuiltInLED(time_t curTime, int code)
 {
     static time_t d = 0;
@@ -211,6 +211,7 @@ static void blinkBuiltInLED(time_t curTime, int code)
         d = 0;
     }
 }
+*/
 
 static void toggleLED(time_t _)
 {
@@ -218,6 +219,7 @@ static void toggleLED(time_t _)
     t = !t;
     digitalWrite(LED_BUILTIN, t);
 }
+/*
 static void interpo(uint32_t color1, uint32_t color2, time_t time)
 {
     for(int i=0; i<strip.numPixels(); i++) {
@@ -226,7 +228,7 @@ static void interpo(uint32_t color1, uint32_t color2, time_t time)
     strip.show();
     state = STATE_PAUSE;
 }
-
+*/
 static void colorWipe(time_t t, uint32_t color)
 {
     static int wait = 0, i=0;

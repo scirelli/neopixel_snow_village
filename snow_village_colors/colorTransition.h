@@ -14,6 +14,7 @@ typedef uint8_t sat;
 typedef uint8_t val;
 typedef uint8_t lum;
 
+/*
 typedef struct keyframe_t {
     time_t time;
     color_t color;
@@ -27,7 +28,7 @@ typedef struct animation_segment_t {
 typedef struct sequence_handle_t{
     animation_segment_t animation_segment;
 } sequence_handle_t;
-
+*/
 void rgb_to_hsv(uint8_t red, uint8_t green, uint8_t b, float hsv[3]);
 
 #ifdef __cplusplus
