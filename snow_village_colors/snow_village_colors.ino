@@ -1,10 +1,13 @@
 #include <Adafruit_NeoPixel.h>
 #include <stdbool.h>
 #include "./buttons.h"
+#include "./segmentTransition.h"
 
 #ifdef __AVR__
   #include <avr/power.h>
 #endif
+
+#define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
 #define INTERNAL_LED 1
 #define PIN        0
@@ -12,8 +15,8 @@
 #define DELAYVAL 500
 #define BUTTON_PIN   2
 
-#define STATE_PAUSE                -2
-#define STATE_ERROR                -1
+#define STATE_PAUSE                -3
+#define STATE_ERROR                -2
 #define STATE_ANIM_ALL_RED          0
 #define STATE_ANIM_ALL_GREEN        1
 #define STATE_ANIM_ALL_BLUE         2
@@ -23,7 +26,7 @@
 #define STATE_ANIM_THEATER_RAINBOW  6
 #define STATE_ANIM_RAINBOW          7
 #define STATE_ANIM_CLEAR            8
-#define STATE_LAST                  8
+#define STATE_TEST                  9
 
 #define ERROR_NONE 1
 #define ERROR_TEST 10
@@ -35,15 +38,32 @@ static const uint32_t GREEN = Adafruit_NeoPixel::Color(0, 255, 0);
 static const uint32_t BLUE = Adafruit_NeoPixel::Color(0, 0, 255);
 static const uint32_t RED_HALF = Adafruit_NeoPixel::Color(127,   0,   0);
 static const uint32_t BLUE_HALF = Adafruit_NeoPixel::Color(0,   0, 127);
+static const int ORDER_OF_STATES[] = {
+    STATE_ANIM_CLEAR,
+    STATE_TEST,
+    STATE_ANIM_ALL_RED,
+    STATE_ANIM_ALL_GREEN,
+    STATE_ANIM_ALL_BLUE,
+    STATE_ANIM_THEATER_WHITE,
+    STATE_ANIM_THEATER_RED,
+    STATE_ANIM_THEATER_BLUE,
+    STATE_ANIM_THEATER_RAINBOW,
+    STATE_ANIM_RAINBOW,
+};
 
+static void animate(unsigned long);
 static void noop(unsigned long);
 static void processButtons(unsigned long);
 static void buttonUp(unsigned long);
 static void buttonDown(unsigned long);
+static void buttonPress(unsigned long);
 static void toggleLED(unsigned long);
 static void blinkBuiltInLED(unsigned long, int);
 static void colorWipe(unsigned long, uint32_t);
-
+static void theaterChaseRainbow(int);
+static void rainbow(int);
+static void theaterChase(uint32_t, int);
+static void interpo(uint32_t, uint32_t, unsigned long);
 
 // Argument 1 = Number of pixels in NeoPixel strip
 // Argument 2 = Arduino pin number (most are valid)
@@ -54,14 +74,14 @@ static void colorWipe(unsigned long, uint32_t);
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 static Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
-static unsigned long startTime, buttonChangeTime;
-static double dif;
-static int    state     = STATE_ANIM_CLEAR;
-static int    buttonPressCnt = STATE_ANIM_CLEAR;
+static unsigned long startTime;
+static int    state = ORDER_OF_STATES[0];
+static int    buttonPressCnt = 0; //Index into the ORDER_OF_STATES
 static int    errorCode = ERROR_NONE;
 static button_handle_t myButton;
 
-void setup() {
+void setup()
+{
     pinMode(INTERNAL_LED, OUTPUT);
     pinMode(LED_BUILTIN, OUTPUT);
     #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
@@ -77,14 +97,15 @@ void setup() {
     btn_addButton(&myButton);
 }
 
-void loop() {
-    dif = millis() - startTime;
+void loop()
+{
     startTime = millis();
     btn_processButtons(startTime);
     animate(startTime);
 }
 
-static void animate(unsigned long startTime) {
+static void animate(unsigned long startTime)
+{
     switch(state) {
         case STATE_ERROR:
             blinkBuiltInLED(startTime, errorCode);
@@ -126,24 +147,26 @@ static void animate(unsigned long startTime) {
             rainbow(10);
             state = STATE_PAUSE;
             break;
+        case STATE_TEST:
+            interpo(Adafruit_NeoPixel::Color(0, 0, 0), Adafruit_NeoPixel::Color(255, 0, 0), startTime);
+            break;
     }
     if(errorCode != ERROR_NONE) state = STATE_ERROR;
 }
 
-static void buttonDown(unsigned long startTime){
-    if(++buttonPressCnt > STATE_LAST){
-        buttonPressCnt = STATE_ANIM_ALL_RED;
-    }
-    state = buttonPressCnt;
-}
-
+static void buttonDown(unsigned long startTime) {}
 static void noop(unsigned long t){}
-
 static void buttonUp(unsigned long startTime){}
 
-static void buttonPress(unsigned long startTime) {}
+static void buttonPress(unsigned long startTime) {
+    if(++buttonPressCnt >= COUNT_OF(ORDER_OF_STATES) || buttonPressCnt < 0) {
+        buttonPressCnt = 0;
+    }
+    state = ORDER_OF_STATES[buttonPressCnt];
+}
 
-static void blinkBuiltInLED(unsigned long curTime, int code) {
+static void blinkBuiltInLED(unsigned long curTime, int code)
+{
     static unsigned long d = 0;
     unsigned long delta =  curTime - d;
 
@@ -157,13 +180,24 @@ static void blinkBuiltInLED(unsigned long curTime, int code) {
     }
 }
 
-static void toggleLED(unsigned long _) {
+static void toggleLED(unsigned long _)
+{
     static bool t = LOW;
     t = !t;
     digitalWrite(LED_BUILTIN, t);
 }
 
-static void colorWipe(unsigned long t, uint32_t color) {
+static void interpo(uint32_t color1, uint32_t color2, unsigned long time)
+{
+    for(int i=0; i<strip.numPixels(); i++) {
+        strip.setPixelColor(i, color2);
+    }
+    strip.show();
+    state = STATE_PAUSE;
+}
+
+static void colorWipe(unsigned long t, uint32_t color)
+{
     static int wait = 0, i=0;
     if(wait == 0){
         strip.setPixelColor(i, color);
@@ -181,7 +215,8 @@ static void colorWipe(unsigned long t, uint32_t color) {
 // Theater-marquee-style chasing lights. Pass in a color (32-bit value,
 // a la strip.Color(r,g,b) as mentioned above), and a delay time (in ms)
 // between frames.
-static void theaterChase(uint32_t color, int wait) {
+static void theaterChase(uint32_t color, int wait)
+{
   for(int a=0; a<10; a++) {  // Repeat 10 times...
     for(int b=0; b<3; b++) { //  'b' counts from 0 to 2...
       strip.clear();         //   Set all pixels in RAM to 0 (off)
@@ -196,7 +231,8 @@ static void theaterChase(uint32_t color, int wait) {
 }
 
 // Rainbow cycle along whole strip. Pass delay time (in ms) between frames.
-static void rainbow(int wait) {
+static void rainbow(int wait)
+{
   // Hue of first pixel runs 3 complete loops through the color wheel.
   // Color wheel has a range of 65536 but it's OK if we roll over, so
   // just count from 0 to 3*65536. Adding 256 to firstPixelHue each time
@@ -220,7 +256,8 @@ static void rainbow(int wait) {
 }
 
 // Rainbow-enhanced theater marquee. Pass delay time (in ms) between frames.
-static void theaterChaseRainbow(int wait) {
+static void theaterChaseRainbow(int wait)
+{
   int firstPixelHue = 0;     // First pixel starts at red (hue 0)
   for(int a=0; a<30; a++) {  // Repeat 30 times...
     for(int b=0; b<3; b++) { //  'b' counts from 0 to 2...

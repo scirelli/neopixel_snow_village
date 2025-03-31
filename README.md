@@ -22,3 +22,4 @@ https://learn.adafruit.com/introducing-trinket/setting-up-with-arduino-ide
     `https://adafruit.github.io/arduino-board-index/package_adafruit_index.json`
     Into the "Additional Board Managers URLS" box
 2. Then, select USBtinyISP from the Tools->Programmer sub-menu
+3. Remember to press the reset button on the ATtiny.
