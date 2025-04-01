@@ -1,6 +1,4 @@
 #include <Adafruit_NeoPixel.h>
-#include "./buttons.h"
-#include "./colorTransition.h"
 
 #ifdef __AVR__
   #include <avr/power.h>
@@ -13,6 +11,7 @@
 #define NUMPIXELS 8
 #define DELAYVAL 500
 #define BUTTON_PIN   2
+#define BUTTON_DEBOUNCE_DELAY  20
 
 #define STATE_PAUSE                -3
 #define STATE_ERROR                -2
@@ -31,6 +30,11 @@
 #define ERROR_TEST 10
 
 typedef unsigned long time_t;
+typedef uint32_t color_t;
+typedef uint16_t hue;
+typedef uint8_t sat;
+typedef uint8_t val;
+typedef uint8_t lum;
 
 static const int ORDER_OF_STATES[] = {
     STATE_ANIM_CLEAR,
@@ -48,21 +52,12 @@ static const int ORDER_OF_STATES[] = {
 };
 
 static void animate(time_t);
-static void noop(time_t);
 static void processButtons(time_t);
-static void buttonUp(time_t);
 static void buttonPress(time_t);
-static void toggleLED(time_t);
+//static void toggleLED(time_t);
 static void colorWipe(time_t, uint32_t);
-/*
-static void buttonDown(time_t);
-static void blinkBuiltInLED(time_t);
-static void theaterChaseRainbow(int);
-static void rainbow(int);
-static void theaterChase(uint32_t, int);
-static void interpo(uint32_t, uint32_t, time_t);
-*/
 static void test(void);
+static void rgb_to_hsv(uint8_t red, uint8_t green, uint8_t b, float hsv[3]);
 
 // Argument 1 = Number of pixels in NeoPixel strip
 // Argument 2 = Arduino pin number (most are valid)
@@ -77,12 +72,13 @@ static time_t startTime;
 static int    state = ORDER_OF_STATES[0];
 static int    buttonPressCnt = 0; //Index into the ORDER_OF_STATES
 static int    errorCode = ERROR_NONE;
-static button_handle_t myButton;
+static bool   btnPrevState = false;
 
 void setup()
 {
     pinMode(INTERNAL_LED, OUTPUT);
     pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
     #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
         clock_prescale_set(clock_div_1);
     #endif
@@ -92,14 +88,12 @@ void setup()
 
     state = STATE_ANIM_CLEAR;
     errorCode = ERROR_NONE;
-    btn_initButton(&myButton, BUTTON_PIN, INPUT_PULLUP, noop, toggleLED, buttonPress);
-    btn_addButton(&myButton);
 }
 
 void loop()
 {
     startTime = millis();
-    btn_processButtons(startTime);
+    processButton(startTime);
     animate(startTime);
 }
 
@@ -126,28 +120,6 @@ static void animate(time_t startTime)
         case STATE_ANIM_ALL_BLUE:
             colorWipe(startTime, Adafruit_NeoPixel::Color(0, 0, 255));
             break;
-        /*
-        case STATE_ANIM_THEATER_WHITE:
-            //theaterChase(WHITE, 50);
-            state = STATE_PAUSE;
-            break;
-        case STATE_ANIM_THEATER_RED:
-            //theaterChase(RED_HALF, 50);
-            state = STATE_PAUSE;
-            break;
-        case STATE_ANIM_THEATER_BLUE:
-            //theaterChase(BLUE_HALF, 50);
-            state = STATE_PAUSE;
-            break;
-        case STATE_ANIM_THEATER_RAINBOW:
-            //theaterChaseRainbow(50);
-            state = STATE_PAUSE;
-            break;
-        case STATE_ANIM_RAINBOW:
-            //rainbow(10);
-            state = STATE_PAUSE;
-            break;
-        */
         case STATE_TEST:
             test();
             state = STATE_PAUSE;
@@ -156,9 +128,23 @@ static void animate(time_t startTime)
     if(errorCode != ERROR_NONE) state = STATE_ERROR;
 }
 
-static void noop(time_t t){}
-//static void buttonDown(time_t startTime) {}
-//static void buttonUp(time_t startTime){}
+static void processButton(unsigned long startTime){
+    static unsigned long debounceTimer = 0;
+    bool btnCurState = digitalRead(BUTTON_PIN);
+
+    if(btnCurState != btnPrevState && debounceTimer == 0) {
+        debounceTimer = millis();
+    }else if(
+        btnCurState != btnPrevState &&
+        (long)(startTime - debounceTimer) > BUTTON_DEBOUNCE_DELAY
+    ) {
+        debounceTimer = 0L;
+        btnPrevState = btnCurState;
+        if(btnCurState == true){
+            buttonPress(startTime);
+        }
+    }
+}
 
 static void buttonPress(time_t startTime) {
     if(++buttonPressCnt >= COUNT_OF(ORDER_OF_STATES) || buttonPressCnt < 0) {
@@ -197,38 +183,14 @@ static void test()
 }
 
 /*
-static void blinkBuiltInLED(time_t curTime, int code)
-{
-    static time_t d = 0;
-    time_t delta =  curTime - d;
-
-    if(d == 0){
-        digitalWrite(LED_BUILTIN, HIGH);
-        d = millis();
-    }else if(delta >= 1000 && delta <= 2000){
-        digitalWrite(LED_BUILTIN, LOW);
-    }else if(delta > 2000) {
-        d = 0;
-    }
-}
-*/
-
 static void toggleLED(time_t _)
 {
     static bool t = LOW;
     t = !t;
     digitalWrite(LED_BUILTIN, t);
 }
-/*
-static void interpo(uint32_t color1, uint32_t color2, time_t time)
-{
-    for(int i=0; i<strip.numPixels(); i++) {
-        strip.setPixelColor(i, color2);
-    }
-    strip.show();
-    state = STATE_PAUSE;
-}
 */
+
 static void colorWipe(time_t t, uint32_t color)
 {
     static int wait = 0, i=0;
@@ -245,70 +207,42 @@ static void colorWipe(time_t t, uint32_t color)
     if((t - wait) > 50) wait = 0;
 }
 
-/*
-// Theater-marquee-style chasing lights. Pass in a color (32-bit value,
-// a la strip.Color(r,g,b) as mentioned above), and a delay time (in ms)
-// between frames.
-static void theaterChase(uint32_t color, int wait)
+/**
+ * Converts RGB to HSV. Scans hue degrees 0 to 1.
+ */
+static void rgb_to_hsv(uint8_t red, uint8_t green, uint8_t blue, float hsv[3])
 {
-  for(int a=0; a<10; a++) {  // Repeat 10 times...
-    for(int b=0; b<3; b++) { //  'b' counts from 0 to 2...
-      strip.clear();         //   Set all pixels in RAM to 0 (off)
-      // 'c' counts up from 'b' to end of strip in steps of 3...
-      for(int c=b; c<strip.numPixels(); c += 3) {
-        strip.setPixelColor(c, color); // Set pixel 'c' to value 'color'
-      }
-      strip.show(); // Update strip with new contents
-      delay(wait);  // Pause for a moment
-    }
-  }
-}
+    float rp = (float)red/255.f,
+          gp = (float)green/255.f,
+          bp = (float)blue/255.f,
+          Cmax = 0.f,
+          Cmin = 0.f,
+          delta = 0.f,
+          hue = 0.f;
 
-// Rainbow cycle along whole strip. Pass delay time (in ms) between frames.
-static void rainbow(int wait)
-{
-  // Hue of first pixel runs 3 complete loops through the color wheel.
-  // Color wheel has a range of 65536 but it's OK if we roll over, so
-  // just count from 0 to 3*65536. Adding 256 to firstPixelHue each time
-  // means we'll make 3*65536/256 = 768 passes through this outer loop:
-  for(long firstPixelHue = 0; firstPixelHue < 3*65536; firstPixelHue += 256) {
-    for(int i=0; i<strip.numPixels(); i++) { // For each pixel in strip...
-      // Offset pixel hue by an amount to make one full revolution of the
-      // color wheel (range of 65536) along the length of the strip
-      // (strip.numPixels() steps):
-      int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
-      // strip.ColorHSV() can take 1 or 3 arguments: a hue (0 to 65535) or
-      // optionally add saturation and value (brightness) (each 0 to 255).
-      // Here we're using just the single-argument hue variant. The result
-      // is passed through strip.gamma32() to provide 'truer' colors
-      // before assigning to each pixel:
-      strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue)));
-    }
-    strip.show(); // Update strip with new contents
-    delay(wait);  // Pause for a moment
-  }
-}
+    Cmax = rp > gp ? rp : gp;
+    Cmax = Cmax < bp ? bp : Cmax;
+    Cmin = rp < gp ? rp : gp;
+    Cmin = Cmin > gp ? gp : Cmin;
+    delta = Cmax - Cmin;
 
-// Rainbow-enhanced theater marquee. Pass delay time (in ms) between frames.
-static void theaterChaseRainbow(int wait)
-{
-  int firstPixelHue = 0;     // First pixel starts at red (hue 0)
-  for(int a=0; a<30; a++) {  // Repeat 30 times...
-    for(int b=0; b<3; b++) { //  'b' counts from 0 to 2...
-      strip.clear();         //   Set all pixels in RAM to 0 (off)
-      // 'c' counts up from 'b' to end of strip in increments of 3...
-      for(int c=b; c<strip.numPixels(); c += 3) {
-        // hue of pixel 'c' is offset by an amount to make one full
-        // revolution of the color wheel (range 65536) along the length
-        // of the strip (strip.numPixels() steps):
-        int      hue   = firstPixelHue + c * 65536L / strip.numPixels();
-        uint32_t color = strip.gamma32(strip.ColorHSV(hue)); // hue -> RGB
-        strip.setPixelColor(c, color); // Set pixel 'c' to value 'color'
-      }
-      strip.show();                // Update strip with new contents
-      delay(wait);                 // Pause for a moment
-      firstPixelHue += 65536 / 90; // One cycle of color wheel over 90 frames
+    hsv[2] = Cmax;
+
+    if(delta == 0){
+        hue = 0;
+    } else if(Cmax == rp) {
+        hue = 60 * ( fmodf(((gp - bp)/delta), 6.f) );
+    } else if(Cmax = gp) {
+        hue = 60 * ( ((bp - rp)/delta) + 2 );
+    } else if(Cmax = bp) {
+        hue = 60 * ( ((rp - gp)/delta) + 4 );
     }
-  }
+
+    if(Cmax == 0) {
+        hsv[1] = 0;
+    }else {
+        hsv[1] = delta/Cmax;
+    }
+
+    hsv[0] = hue/360;
 }
-*/
