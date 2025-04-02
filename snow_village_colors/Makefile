@@ -67,50 +67,47 @@ all: $(TARGET).hex
 
 # Core compilation
 $(CORE_BUILD_DIR)/%.cpp.o: $(CORE_PATH)/%.cpp
-	@mkdir -p $(CORE_BUILD_DIR)
-	$(AVR_GPP) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
+    @mkdir -p $(CORE_BUILD_DIR)
+    $(AVR_GPP) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 $(CORE_BUILD_DIR)/%.c.o: $(CORE_PATH)/%.c
-	@mkdir -p $(CORE_BUILD_DIR)
-	$(AVR_GCC) $(CFLAGS) $(INCLUDE_DIRS) $< -o $@
+    @mkdir -p $(CORE_BUILD_DIR)
+    $(AVR_GCC) $(CFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 $(CORE_BUILD_DIR)/%.S.o: $(CORE_PATH)/%.S
-	@mkdir -p $(CORE_BUILD_DIR)
-	$(AVR_GCC) $(ASFLAGS) $(INCLUDE_DIRS) $< -o $@
+    @mkdir -p $(CORE_BUILD_DIR)
+    $(AVR_GCC) $(ASFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 $(CORE_BUILD_DIR)/core.a: $(CORE_OBJECTS)
-	@mkdir -p $(CORE_BUILD_DIR)
-	$(AVR_AR) rcs $@ $^
+    @mkdir -p $(CORE_BUILD_DIR)
+    $(AVR_AR) rcs $@ $^
 
 # Library compilation
 $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.cpp.o: $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.cpp
-	@mkdir -p $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel
-	$(AVR_GPP) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
+    @mkdir -p $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel
+    $(AVR_GPP) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.c.o: $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.c
-	@mkdir -p $(LIBRARIES_BUILD_DIR)
-	$(AVR_GCC) $(CFLAGS) $(INCLUDE_DIRS) $< -o $@
+    @mkdir -p $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel
+    $(AVR_GCC) $(CFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 LIBRARY_Adafruit_NeoPixel_A = $(LIBRARIES_BUILD_DIR)/libAdafruit_NeoPixel.a
 $(LIBRARY_Adafruit_NeoPixel_A): $(LIBRARY_OBJECTS_Adafruit_NeoPixel)
-	$(AVR_AR) rcs $@ $^
+    $(AVR_AR) rcs $@ $^
 
 # Sketch compilation
-SKETCH_OBJECT = $(BUILD_DIR)/sketch/$(SKETCH_CPP:.cpp=.cpp.o)
-SKETCH_SOURCE = $(SKETCH_INO:.ino=.cpp)
-
-$(SKETCH_OBJECT): $(SKETCH_SOURCE)
-	@mkdir -p $(BUILD_DIR)/sketch
-	$(AVR_GPP) $(CPPFLAGS) $< -o $@
+$(SKETCH_OBJECT): $(SKETCH_INO)
+    @mkdir -p $(SKETCH_BUILD_DIR)
+    $(AVR_GPP) $(CPPFLAGS) $< -o $@
 
 # Linking
 $(TARGET).elf: $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A)
-	$(AVR_GPP) -Os -flto -Wl,--gc-sections -mmcu=$(MCU) $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A) -o $@
+    $(AVR_GPP) -Os -flto -Wl,--gc-sections -mmcu=$(MCU) $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A) -o $@
 
 # Convert to hex
 $(TARGET).hex: $(TARGET).elf
-	$(AVR_OBJCOPY) -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load --no-change-warnings --change-section-lma .eeprom=0 $< $@.eep
-	$(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
+    $(AVR_OBJCOPY) -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load --no-change-warnings --change-section-lma .eeprom=0 $< $@.eep
+    $(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
 
 # Clean
 clean:
