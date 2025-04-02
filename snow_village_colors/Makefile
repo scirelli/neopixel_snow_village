@@ -96,11 +96,12 @@ $(LIBRARY_Adafruit_NeoPixel_A): $(LIBRARY_OBJECTS_Adafruit_NeoPixel)
 	$(AVR_AR) rcs $@ $^
 
 # Sketch compilation
-SKETCH_OBJECT = $(BUILD_DIR)/sketch/$(PROJECT_NAME).cpp.o
+SKETCH_OBJECT = $(BUILD_DIR)/sketch/$(SKETCH_CPP:.cpp=.cpp.o)
+SKETCH_SOURCE = $(SKETCH_INO:.ino=.cpp)
 
-$(SKETCH_OBJECT): $(SKETCH_INO)
+$(SKETCH_OBJECT): $(SKETCH_SOURCE)
 	@mkdir -p $(BUILD_DIR)/sketch
-	$(AVR_GPP) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
+	$(AVR_GPP) $(CPPFLAGS) $< -o $@
 
 # Linking
 $(TARGET).elf: $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A)
