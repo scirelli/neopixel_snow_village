@@ -1,56 +1,111 @@
-SHELL:=/bin/bash
+# Project settings
+PROJECT_NAME = snow_village_colors
+MCU = attiny85
+F_CPU = 8000000L
+ARDUINO_VERSION = 10607
+BOARD = trinket3
+ARCH = AVR
 
-PP=/home/scirelli/.arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/bin/avr-g++
-CTAGS=/home/scirelli/.arduino15/packages/builtin/tools/ctags/5.8-arduino11/ctags
-CC=/home/scirelli/.arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/bin/avr-gcc
-OC=/home/scirelli/.arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/bin/avr-objcopy
-AS=/home/scirelli/.arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/bin/avr-size
+# Toolchain paths
+ARDUINO_TOOLS_PATH = /home/scirelli/.arduino15/packages/arduino/tools
+AVR_GCC_VERSION = 7.3.0-atmel3.6.1-arduino7
+AVR_GCC_PATH = $(ARDUINO_TOOLS_PATH)/avr-gcc/$(AVR_GCC_VERSION)/bin
+AVR_GCC = $(AVR_GCC_PATH)/avr-g++
+AVR_AR = $(AVR_GCC_PATH)/avr-gcc-ar
+AVR_OBJCOPY = $(AVR_GCC_PATH)/avr-objcopy
 
-install:
-	sudo apt install gcc-avr avr-libc avrdude
+# Arduino core paths
+ARDUINO_HARDWARE_PATH = /home/scirelli/.arduino15/packages/arduino/hardware/avr/1.8.6
+ADAFRUIT_HARDWARE_PATH = /home/scirelli/.arduino15/packages/adafruit/hardware/avr/1.4.15
 
-build:
-	$(PP) -c -g -Os -w -std=gnu++11 -fpermissive \
-		-fno-exceptions \
-		-ffunction-sections \
-		-fdata-sections \
-		-fno-threadsafe-statics \
-		-Wno-error=narrowing \
-		-flto -w -x c++ -E -CC \
-		-mmcu=attiny85 -DF_CPU=8000000L -DARDUINO=10607 -DARDUINO_AVR_TRINKET3 \
-		-DARDUINO_ARCH_AVR \
-		-I/home/scirelli/.arduino15/packages/arduino/hardware/avr/1.8.6/cores/arduino \
-		-I/home/scirelli/.arduino15/packages/adafruit/hardware/avr/1.4.15/variants/tiny8 \
-		-I/home/scirelli/Arduino/libraries/Adafruit_NeoPixel \
-		./main.c \
-		-o ./build/sketch_merged.cpp
-	$(CTAGS) -u --language-force=c++ -f - \
-		--c++-kinds=svpf --fields=KSTtzns \
-		--line-directives \
-		./build/sketch_merged.cpp
-	$(PP) -c -g -Os -w -std=gnu++11 -fpermissive \
-		-fno-exceptions \
-		-ffunction-sections \
-		-fdata-sections \
-		-fno-threadsafe-statics \
-		-Wno-error=narrowing -MMD \
-		-flto -mmcu=attiny85 -DF_CPU=8000000L -DARDUINO=10607 -DARDUINO_AVR_TRINKET3 \
-		-DARDUINO_ARCH_AVR \
-		-I/home/scirelli/.arduino15/packages/arduino/hardware/avr/1.8.6/cores/arduino \
-		-I/home/scirelli/.arduino15/packages/adafruit/hardware/avr/1.4.15/variants/tiny8 \
-		-I/home/scirelli/Arduino/libraries/Adafruit_NeoPixel \
-		./main.c \
-		-o ./build/main.o
-	$(CC) -w -Os -g -flto -fuse-linker-plugin -Wl,--gc-sections \
-		-mmcu=attiny85 \
-		-o ./build/main.elf \
-		./build/main.o \
-		./build/Adafruit_NeoPixel.cpp.o \
-		./build/esp.c.o \
-		./build/esp8266.c.o \
-		./build/kendyte_k210.c.o \
-		./build/core.a \
-		-L/home/scirelli/.var/app/cc.arduino.IDE2/cache/arduino/sketches/B36C69AEA7BA79B74E955C5E50F9A51D -lm
-	$(OC) -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load --no-change-warnings --change-section-lma .eeprom=0 /home/scirelli/.var/app/cc.arduino.IDE2/cache/arduino/sketches/B36C69AEA7BA79B74E955C5E50F9A51D/snow_village_colors.ino.elf /home/scirelli/.var/app/cc.arduino.IDE2/cache/arduino/sketches/B36C69AEA7BA79B74E955C5E50F9A51D/snow_village_colors.ino.eep
-	$(OC) -O ihex -R .eeprom /home/scirelli/.var/app/cc.arduino.IDE2/cache/arduino/sketches/B36C69AEA7BA79B74E955C5E50F9A51D/snow_village_colors.ino.elf /home/scirelli/.var/app/cc.arduino.IDE2/cache/arduino/sketches/B36C69AEA7BA79B74E955C5E50F9A51D/snow_village_colors.ino.hex
-	$(AS) -A /home/scirelli/.var/app/cc.arduino.IDE2/cache/arduino/sketches/B36C69AEA7BA79B74E955C5E50F9A51D/snow_village_colors.ino.elf
+# Core and variant flags
+CORE_PATH = $(ARDUINO_HARDWARE_PATH)/cores/arduino
+VARIANT_PATH = $(ADAFRUIT_HARDWARE_PATH)/variants/tiny8
+
+# Library paths
+USER_LIBRARY_PATH = /home/scirelli/Arduino/libraries
+LIBRARIES = Adafruit_NeoPixel
+
+# Source files
+SKETCH_INO = snow_village_colors.ino
+SKETCH_CPP = $(SKETCH_INO:.ino=.cpp)
+CORE_FILES = $(wildcard $(CORE_PATH)/*.cpp) $(wildcard $(CORE_PATH)/*.c) $(wildcard $(CORE_PATH)/*.S)
+LIBRARY_FILES_Adafruit_NeoPixel = $(wildcard $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/*.cpp) $(wildcard $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/*.c)
+
+# Object directories
+BUILD_DIR = build
+CORE_BUILD_DIR = $(BUILD_DIR)/core
+LIBRARIES_BUILD_DIR = $(BUILD_DIR)/libraries
+SKETCH_BUILD_DIR = $(BUILD_DIR)/sketch
+
+# Objects
+CORE_OBJECTS = $(patsubst $(CORE_PATH)/%.cpp, $(CORE_BUILD_DIR)/%.cpp.o, $(CORE_FILES:.c=.c.o:.S=.S.o))
+CORE_OBJECTS += $(patsubst $(CORE_PATH)/%.c, $(CORE_BUILD_DIR)/%.c.o, $(filter %.c, $(CORE_FILES)))
+CORE_OBJECTS += $(patsubst $(CORE_PATH)/%.S, $(CORE_BUILD_DIR)/%.S.o, $(filter %.S, $(CORE_FILES)))
+
+LIBRARY_OBJECTS_Adafruit_NeoPixel = $(patsubst $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.cpp, $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.cpp.o, $(LIBRARY_FILES_Adafruit_NeoPixel:.c=.c.o))
+LIBRARY_OBJECTS_Adafruit_NeoPixel += $(patsubst $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.c, $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.c.o, $(filter %.c, $(LIBRARY_FILES_Adafruit_NeoPixel)))
+
+SKETCH_OBJECT = $(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o)
+
+# Flags
+COMMON_FLAGS = -c -g -Os -w -std=gnu++11 -fpermissive -fno-exceptions -ffunction-sections -fdata-sections -fno-threadsafe-statics -Wno-error=narrowing -flto -mmcu=$(MCU) -DF_CPU=$(F_CPU) -DARDUINO=$(ARDUINO_VERSION) -DARDUINO_AVR_$(BOARD) -DARDUINO_ARCH_$(ARCH)
+CPPFLAGS = $(COMMON_FLAGS) -MMD
+CFLAGS = $(COMMON_FLAGS) -std=gnu11 -fno-fat-lto-objects -MMD
+ASFLAGS = -c -g -x assembler-with-cpp -flto -MMD -mmcu=$(MCU) -DF_CPU=$(F_CPU) -DARDUINO=$(ARDUINO_VERSION) -DARDUINO_AVR_$(BOARD) -DARDUINO_ARCH_$(ARCH)
+
+# Include paths
+INCLUDE_DIRS = -I$(CORE_PATH) -I$(VARIANT_PATH) -I$(USER_LIBRARY_PATH)/Adafruit_NeoPixel
+
+# Target file
+TARGET = $(BUILD_DIR)/$(PROJECT_NAME)
+
+all: $(TARGET).hex
+
+# Core compilation
+$(CORE_BUILD_DIR)/%.cpp.o: $(CORE_PATH)/%.cpp
+	@mkdir -p $(CORE_BUILD_DIR)
+	$(AVR_GCC) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
+
+$(CORE_BUILD_DIR)/%.c.o: $(CORE_PATH)/%.c
+	@mkdir -p $(CORE_BUILD_DIR)
+	$(AVR_GCC) $(CFLAGS) $(INCLUDE_DIRS) $< -o $@
+
+$(CORE_BUILD_DIR)/%.S.o: $(CORE_PATH)/%.S
+	@mkdir -p $(CORE_BUILD_DIR)
+	$(AVR_GCC) $(ASFLAGS) $(INCLUDE_DIRS) $< -o $@
+
+$(CORE_BUILD_DIR)/core.a: $(CORE_OBJECTS)
+	@mkdir -p $(CORE_BUILD_DIR)
+	$(AVR_AR) rcs $@ $^
+
+# Library compilation
+$(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.cpp.o: $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.cpp
+	@mkdir -p $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel
+	$(AVR_GCC) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
+
+$(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.c.o: $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.c
+	@mkdir -p $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel
+	$(AVR_GCC) $(CFLAGS) $(INCLUDE_DIRS) $< -o $@
+
+LIBRARY_Adafruit_NeoPixel_A = $(LIBRARIES_BUILD_DIR)/libAdafruit_NeoPixel.a
+$(LIBRARY_Adafruit_NeoPixel_A): $(LIBRARY_OBJECTS_Adafruit_NeoPixel)
+	$(AVR_AR) rcs $@ $^
+
+# Sketch compilation
+$(SKETCH_BUILD_DIR)/%.cpp.o: $(SKETCH_INO)
+	@mkdir -p $(SKETCH_BUILD_DIR)
+	$(AVR_GCC) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
+
+# Linking
+$(TARGET).elf: $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A)
+	$(AVR_GCC) -Os -flto -Wl,--gc-sections -mmcu=$(MCU) $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A) -o $@
+
+# Convert to hex
+$(TARGET).hex: $(TARGET).elf
+	$(AVR_OBJCOPY) -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load --no-change-warnings --change-section-lma .eeprom=0 $< $@.eep
+	$(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
+
+# Clean
+clean:
+	rm -rf $(BUILD_DIR)
