@@ -96,13 +96,13 @@ $(LIBRARY_Adafruit_NeoPixel_A): $(LIBRARY_OBJECTS_Adafruit_NeoPixel)
 	$(AVR_AR) rcs $@ $^
 
 # Sketch compilation
-$(SKETCH_BUILD_DIR)/%.cpp.o: $(SKETCH_INO)
+$(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o): $(SKETCH_INO)
 	@mkdir -p $(SKETCH_BUILD_DIR)
 	$(AVR_GPP) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 # Linking
-$(TARGET).elf: $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A)
-	$(AVR_GPP) -Os -flto -Wl,--gc-sections -mmcu=$(MCU) $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A) -o $@
+$(TARGET).elf: $(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A)
+	$(AVR_GPP) -Os -flto -Wl,--gc-sections -mmcu=$(MCU) $(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A) -o $@
 
 # Convert to hex
 $(TARGET).hex: $(TARGET).elf
