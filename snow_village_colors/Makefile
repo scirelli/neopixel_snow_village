@@ -57,6 +57,9 @@ CPPFLAGS = $(COMMON_FLAGS) -MMD
 CFLAGS = $(COMMON_FLAGS) -std=gnu11 -ffunction-sections -fdata-sections -MMD -flto -fno-fat-lto-objects
 ASFLAGS = -c -g -x assembler-with-cpp -flto -MMD -mmcu=$(MCU) -DF_CPU=$(F_CPU) -DARDUINO=$(ARDUINO_VERSION) -DARDUINO_AVR_$(BOARD) -DARDUINO_ARCH_$(ARCH)
 
+# Sketch-specific flags (without dependency generation)
+SKETCH_CPPFLAGS = $(COMMON_FLAGS)
+
 # Include paths
 INCLUDE_DIRS = -I$(CORE_PATH) -I$(VARIANT_PATH) -I$(USER_LIBRARY_PATH)/Adafruit_NeoPixel
 
@@ -96,13 +99,13 @@ $(LIBRARY_Adafruit_NeoPixel_A): $(LIBRARY_OBJECTS_Adafruit_NeoPixel)
 	$(AVR_AR) rcs $@ $^
 
 # Sketch compilation
-$(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o): $(SKETCH_INO)
-	@mkdir -p $(SKETCH_BUILD_DIR)
-	$(AVR_GPP) $(CPPFLAGS) $< -o $@
+$(BUILD_DIR)/sketch/$(SKETCH_CPP:.cpp=.cpp.o): $(SKETCH_INO)
+	@mkdir -p $(BUILD_DIR)/sketch
+	$(AVR_GPP) $(SKETCH_CPPFLAGS) $< -o $@
 
 # Linking
-$(TARGET).elf: $(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A)
-	$(AVR_GPP) -Os -flto -Wl,--gc-sections -mmcu=$(MCU) $(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A) -o $@
+$(TARGET).elf: $(BUILD_DIR)/sketch/$(SKETCH_CPP:.cpp=.cpp.o) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A)
+	$(AVR_GPP) -Os -flto -Wl,--gc-sections -mmcu=$(MCU) $(BUILD_DIR)/sketch/$(SKETCH_CPP:.cpp=.cpp.o) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A) -o $@
 
 # Convert to hex
 $(TARGET).hex: $(TARGET).elf
