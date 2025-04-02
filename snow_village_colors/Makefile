@@ -30,7 +30,6 @@ LIBRARIES = Adafruit_NeoPixel
 SKETCH_INO = snow_village_colors.ino
 SKETCH_CPP = $(SKETCH_INO:.ino=.cpp)
 CORE_FILES = $(wildcard $(CORE_PATH)/*.cpp) $(wildcard $(CORE_PATH)/*.c) $(wildcard $(CORE_PATH)/*.S)
-LIBRARY_FILES_Adafruit_NeoPixel = $(wildcard $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/*.cpp) $(wildcard $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/*.c)
 
 # Object directories
 BUILD_DIR = build
@@ -39,10 +38,12 @@ LIBRARIES_BUILD_DIR = $(BUILD_DIR)/libraries
 SKETCH_BUILD_DIR = $(BUILD_DIR)/sketch
 
 # Objects
-CORE_OBJECTS = $(patsubst $(CORE_PATH)/%.cpp, $(CORE_BUILD_DIR)/%.cpp.o, $(CORE_FILES:.c=.c.o:.S=.S.o))
-CORE_OBJECTS += $(patsubst $(CORE_PATH)/%.c, $(CORE_BUILD_DIR)/%.c.o, $(filter %.c, $(CORE_FILES)))
-CORE_OBJECTS += $(patsubst $(CORE_PATH)/%.S, $(CORE_BUILD_DIR)/%.S.o, $(filter %.S, $(CORE_FILES)))
+CORE_CPP_OBJECTS = $(patsubst $(CORE_PATH)/%.cpp, $(CORE_BUILD_DIR)/%.cpp.o, $(filter %.cpp, $(CORE_FILES)))
+CORE_C_OBJECTS = $(patsubst $(CORE_PATH)/%.c, $(CORE_BUILD_DIR)/%.c.o, $(filter %.c, $(CORE_FILES)))
+CORE_S_OBJECTS = $(patsubst $(CORE_PATH)/%.S, $(CORE_BUILD_DIR)/%.S.o, $(filter %.S, $(CORE_FILES)))
+CORE_OBJECTS = $(CORE_CPP_OBJECTS) $(CORE_C_OBJECTS) $(CORE_S_OBJECTS)
 
+LIBRARY_FILES_Adafruit_NeoPixel = $(wildcard $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/*.cpp) $(wildcard $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/*.c)
 LIBRARY_OBJECTS_Adafruit_NeoPixel = $(patsubst $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.cpp, $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.cpp.o, $(LIBRARY_FILES_Adafruit_NeoPixel:.c=.c.o))
 LIBRARY_OBJECTS_Adafruit_NeoPixel += $(patsubst $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.c, $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.c.o, $(filter %.c, $(LIBRARY_FILES_Adafruit_NeoPixel)))
 
@@ -51,7 +52,7 @@ SKETCH_OBJECT = $(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o)
 # Flags
 COMMON_FLAGS = -c -g -Os -w -std=gnu++11 -fpermissive -fno-exceptions -ffunction-sections -fdata-sections -fno-threadsafe-statics -Wno-error=narrowing -flto -mmcu=$(MCU) -DF_CPU=$(F_CPU) -DARDUINO=$(ARDUINO_VERSION) -DARDUINO_AVR_$(BOARD) -DARDUINO_ARCH_$(ARCH)
 CPPFLAGS = $(COMMON_FLAGS) -MMD
-CFLAGS = $(COMMON_FLAGS) -std=gnu11 -fno-fat-lto-objects -MMD
+CFLAGS = $(COMMON_FLAGS) -std=gnu11 -ffunction-sections -fdata-sections -MMD -flto -fno-fat-lto-objects
 ASFLAGS = -c -g -x assembler-with-cpp -flto -MMD -mmcu=$(MCU) -DF_CPU=$(F_CPU) -DARDUINO=$(ARDUINO_VERSION) -DARDUINO_AVR_$(BOARD) -DARDUINO_ARCH_$(ARCH)
 
 # Include paths
