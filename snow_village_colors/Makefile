@@ -45,8 +45,9 @@ CORE_S_OBJECTS = $(patsubst $(CORE_PATH)/%.S, $(CORE_BUILD_DIR)/%.S.o, $(filter 
 CORE_OBJECTS = $(CORE_CPP_OBJECTS) $(CORE_C_OBJECTS) $(CORE_S_OBJECTS)
 
 LIBRARY_FILES_Adafruit_NeoPixel = $(wildcard $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/*.cpp) $(wildcard $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/*.c)
-LIBRARY_OBJECTS_Adafruit_NeoPixel = $(patsubst $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.cpp, $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.cpp.o, $(LIBRARY_FILES_Adafruit_NeoPixel:.c=.c.o))
-LIBRARY_OBJECTS_Adafruit_NeoPixel += $(patsubst $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.c, $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.c.o, $(filter %.c, $(LIBRARY_FILES_Adafruit_NeoPixel)))
+LIBRARY_CPP_OBJECTS_Adafruit_NeoPixel = $(patsubst $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.cpp, $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.cpp.o, $(filter %.cpp, $(LIBRARY_FILES_Adafruit_NeoPixel)))
+LIBRARY_C_OBJECTS_Adafruit_NeoPixel = $(patsubst $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.c, $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.c.o, $(filter %.c, $(LIBRARY_FILES_Adafruit_NeoPixel)))
+LIBRARY_OBJECTS_Adafruit_NeoPixel = $(LIBRARY_CPP_OBJECTS_Adafruit_NeoPixel) $(LIBRARY_C_OBJECTS_Adafruit_NeoPixel)
 
 SKETCH_OBJECT = $(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o)
 
