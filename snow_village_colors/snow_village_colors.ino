@@ -52,7 +52,7 @@ static const int ORDER_OF_STATES[] = {
 };
 
 static void animate(time_t);
-static void processButtons(time_t);
+static void processButton(time_t);
 static void buttonPress(time_t);
 //static void toggleLED(time_t);
 static void colorWipe(time_t, uint32_t);
