@@ -10,7 +10,8 @@ ARCH = AVR
 ARDUINO_TOOLS_PATH = /home/scirelli/.arduino15/packages/arduino/tools
 AVR_GCC_VERSION = 7.3.0-atmel3.6.1-arduino7
 AVR_GCC_PATH = $(ARDUINO_TOOLS_PATH)/avr-gcc/$(AVR_GCC_VERSION)/bin
-AVR_GCC = $(AVR_GCC_PATH)/avr-g++
+AVR_GPP = $(AVR_GCC_PATH)/avr-g++  # Variable for C++ compiler
+AVR_GCC = $(AVR_GCC_PATH)/avr-gcc    # Variable for C compiler
 AVR_AR = $(AVR_GCC_PATH)/avr-gcc-ar
 AVR_OBJCOPY = $(AVR_GCC_PATH)/avr-objcopy
 
@@ -66,7 +67,7 @@ all: $(TARGET).hex
 # Core compilation
 $(CORE_BUILD_DIR)/%.cpp.o: $(CORE_PATH)/%.cpp
 	@mkdir -p $(CORE_BUILD_DIR)
-	$(AVR_GCC) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
+	$(AVR_GPP) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 $(CORE_BUILD_DIR)/%.c.o: $(CORE_PATH)/%.c
 	@mkdir -p $(CORE_BUILD_DIR)
@@ -83,10 +84,10 @@ $(CORE_BUILD_DIR)/core.a: $(CORE_OBJECTS)
 # Library compilation
 $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.cpp.o: $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.cpp
 	@mkdir -p $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel
-	$(AVR_GCC) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
+	$(AVR_GPP) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.c.o: $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.c
-	@mkdir -p $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel
+	@mkdir -p $(LIBRARIES_BUILD_DIR)
 	$(AVR_GCC) $(CFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 LIBRARY_Adafruit_NeoPixel_A = $(LIBRARIES_BUILD_DIR)/libAdafruit_NeoPixel.a
@@ -96,11 +97,11 @@ $(LIBRARY_Adafruit_NeoPixel_A): $(LIBRARY_OBJECTS_Adafruit_NeoPixel)
 # Sketch compilation
 $(SKETCH_BUILD_DIR)/%.cpp.o: $(SKETCH_INO)
 	@mkdir -p $(SKETCH_BUILD_DIR)
-	$(AVR_GCC) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
+	$(AVR_GPP) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 # Linking
 $(TARGET).elf: $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A)
-	$(AVR_GCC) -Os -flto -Wl,--gc-sections -mmcu=$(MCU) $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A) -o $@
+	$(AVR_GPP) -Os -flto -Wl,--gc-sections -mmcu=$(MCU) $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A) -o $@
 
 # Convert to hex
 $(TARGET).hex: $(TARGET).elf
