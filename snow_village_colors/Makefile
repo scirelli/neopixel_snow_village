@@ -49,7 +49,7 @@ LIBRARY_CPP_OBJECTS_Adafruit_NeoPixel = $(patsubst $(USER_LIBRARY_PATH)/Adafruit
 LIBRARY_C_OBJECTS_Adafruit_NeoPixel = $(patsubst $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.c, $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.c.o, $(filter %.c, $(LIBRARY_FILES_Adafruit_NeoPixel)))
 LIBRARY_OBJECTS_Adafruit_NeoPixel = $(LIBRARY_CPP_OBJECTS_Adafruit_NeoPixel) $(LIBRARY_C_OBJECTS_Adafruit_NeoPixel)
 
-SKETCH_OBJECT = $(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o)
+SKETCH_OBJECT = $(BUILD_DIR)/sketch/$(SKETCH_CPP:.cpp=.cpp.o)
 
 # Flags
 COMMON_FLAGS = -c -g -Os -w -std=gnu++11 -fpermissive -fno-exceptions -ffunction-sections -fdata-sections -fno-threadsafe-statics -Wno-error=narrowing -flto -mmcu=$(MCU) -DF_CPU=$(F_CPU) -DARDUINO=$(ARDUINO_VERSION) -DARDUINO_AVR_$(BOARD) -DARDUINO_ARCH_$(ARCH)
@@ -88,7 +88,7 @@ $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.cpp.o: $(USER_LIBRARY_PATH)/Adafruit_
 	$(AVR_GPP) $(CPPFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel/%.c.o: $(USER_LIBRARY_PATH)/Adafruit_NeoPixel/%.c
-	@mkdir -p $(LIBRARIES_BUILD_DIR)/Adafruit_NeoPixel
+	@mkdir -p $(LIBRARIES_BUILD_DIR)
 	$(AVR_GCC) $(CFLAGS) $(INCLUDE_DIRS) $< -o $@
 
 LIBRARY_Adafruit_NeoPixel_A = $(LIBRARIES_BUILD_DIR)/libAdafruit_NeoPixel.a
@@ -96,15 +96,13 @@ $(LIBRARY_Adafruit_NeoPixel_A): $(LIBRARY_OBJECTS_Adafruit_NeoPixel)
 	$(AVR_AR) rcs $@ $^
 
 # Sketch compilation
-SKETCH_OBJECT = $(BUILD_DIR)/sketch/$(SKETCH_CPP:.cpp=.cpp.o)
-
-$(BUILD_DIR)/sketch/$(SKETCH_CPP:.cpp=.cpp.o): $(SKETCH_INO)
-    @mkdir -p $(BUILD_DIR)/sketch
-    $(AVR_GPP) $(CPPFLAGS) -c $< -o $@
+$(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o): $(SKETCH_INO)
+	@mkdir -p $(SKETCH_BUILD_DIR)
+	$(AVR_GPP) $(CPPFLAGS) $< -o $@
 
 # Linking
-$(TARGET).elf: $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A)
-    $(AVR_GPP) -Os -flto -Wl,--gc-sections -mmcu=$(MCU) $(SKETCH_OBJECT) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A) -o $@
+$(TARGET).elf: $(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A)
+	$(AVR_GPP) -Os -flto -Wl,--gc-sections -mmcu=$(MCU) $(SKETCH_BUILD_DIR)/$(SKETCH_CPP:.cpp=.cpp.o) $(CORE_BUILD_DIR)/core.a $(LIBRARY_Adafruit_NeoPixel_A) -o $@
 
 # Convert to hex
 $(TARGET).hex: $(TARGET).elf
