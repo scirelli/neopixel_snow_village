@@ -112,6 +112,10 @@ $(TARGET).hex: $(TARGET).elf
 	$(AVR_OBJCOPY) -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load --no-change-warnings --change-section-lma .eeprom=0 $< $@.eep
 	$(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
 
+# Check size
+size: $(TARGET).elf
+	$(AVR_GCC_PATH)/avr-size -C --mcu attiny85 $<
+
 # Clean
 clean:
 	rm -rf $(BUILD_DIR)
