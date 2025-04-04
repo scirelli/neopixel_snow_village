@@ -114,7 +114,7 @@ $(TARGET).hex: $(TARGET).elf
 
 # Check size
 size: $(TARGET).elf
-	$(AVR_GCC_PATH)/avr-size -C --mcu attiny85 $<
+	$(AVR_GCC_PATH)/avr-size -C --mcu $(MCU) $<
 
 # Clean
 clean:
