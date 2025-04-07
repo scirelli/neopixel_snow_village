@@ -1,4 +1,5 @@
 #include <Adafruit_NeoPixel.h>
+#include "color.h"
 
 #ifdef __AVR__
   #include <avr/power.h>
@@ -31,12 +32,12 @@
 
 typedef unsigned long time_t;
 typedef uint32_t color_t;
-typedef uint16_t hue;
-typedef uint8_t sat;
-typedef uint8_t val;
-typedef uint8_t lum;
+typedef uint16_t hue_t;
+typedef uint8_t sat_t;
+typedef uint8_t val_t;
+typedef uint8_t lum_t;
 
-static const int ORDER_OF_STATES[] = {
+static const int8_t ORDER_OF_STATES[] = {
     STATE_ANIM_CLEAR,
     STATE_TEST,
     STATE_ANIM_ALL_RED,
@@ -54,10 +55,9 @@ static const int ORDER_OF_STATES[] = {
 static void animate(time_t);
 static void processButton(time_t);
 static void buttonPress(time_t);
-//static void toggleLED(time_t);
-static void colorWipe(time_t, uint32_t);
+static void toggleLED(time_t);
 static void test(void);
-static void rgb_to_hsv(uint8_t red, uint8_t green, uint8_t b, float hsv[3]);
+static void colorWipe(time_t, uint32_t);
 
 // Argument 1 = Number of pixels in NeoPixel strip
 // Argument 2 = Arduino pin number (most are valid)
@@ -69,10 +69,10 @@ static void rgb_to_hsv(uint8_t red, uint8_t green, uint8_t b, float hsv[3]);
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 static Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 static time_t startTime;
-static int    state = ORDER_OF_STATES[0];
-static int    buttonPressCnt = 0; //Index into the ORDER_OF_STATES
-static int    errorCode = ERROR_NONE;
-static bool   btnPrevState = false;
+static int8_t state = ORDER_OF_STATES[0];
+static uint8_t buttonPressCnt = 0; //Index into the ORDER_OF_STATES
+static int8_t errorCode = ERROR_NONE;
+static bool btnPrevState = false;
 
 void setup()
 {
@@ -94,6 +94,7 @@ void loop()
 {
     startTime = millis();
     processButton(startTime);
+
     animate(startTime);
 }
 
@@ -128,7 +129,8 @@ static void animate(time_t startTime)
     if(errorCode != ERROR_NONE) state = STATE_ERROR;
 }
 
-static void processButton(unsigned long startTime){
+static void processButton(unsigned long startTime)
+{
     static unsigned long debounceTimer = 0;
     bool btnCurState = digitalRead(BUTTON_PIN);
 
@@ -146,7 +148,8 @@ static void processButton(unsigned long startTime){
     }
 }
 
-static void buttonPress(time_t startTime) {
+static void buttonPress(time_t startTime)
+{
     if(++buttonPressCnt >= COUNT_OF(ORDER_OF_STATES) || buttonPressCnt < 0) {
         buttonPressCnt = 0;
     }
@@ -155,41 +158,32 @@ static void buttonPress(time_t startTime) {
 
 static void test()
 {
-    float hsv[3];
+    return;
+    uint8_t hsv[3];
     color_t col;
 
-    rgb_to_hsv(255, 0, 0, hsv);
-    hsv[0] = hsv[0] * 65536;
-    hsv[1] = hsv[1] * 256;
-    hsv[2] = hsv[2] * 256;
-    col = strip.ColorHSV((hue)hsv[0], (sat)hsv[1], (val)hsv[2]);
+    rgb_to_hsv_intv3(0, 255, 0, hsv);
+    col = strip.ColorHSV((hue_t)hsv[0], (sat_t)hsv[1], (val_t)hsv[2]);
     strip.setPixelColor(0, strip.gamma32(col));
 
-    rgb_to_hsv(0, 255, 0, hsv);
-    hsv[0] = hsv[0] * 65536;
-    hsv[1] = hsv[1] * 256;
-    hsv[2] = hsv[2] * 256;
+    /*
+    rgb_to_hsv_intv1(0, 255, 0, hsv);
     col = strip.ColorHSV((hue)hsv[0], (sat)hsv[1], (val)hsv[2]);
     strip.setPixelColor(1, strip.gamma32(col));
 
-    rgb_to_hsv(0, 0, 255, hsv);
-    hsv[0] = hsv[0] * 65536;
-    hsv[1] = hsv[1] * 256;
-    hsv[2] = hsv[2] * 256;
+    rgb_to_hsv_intv1(0, 0, 255, hsv);
     col = strip.ColorHSV((hue)hsv[0], (sat)hsv[1], (val)hsv[2]);
     strip.setPixelColor(2, strip.gamma32(col));
-
+    */
     strip.show();
 }
 
-/*
 static void toggleLED(time_t _)
 {
     static bool t = LOW;
     t = !t;
     digitalWrite(LED_BUILTIN, t);
 }
-*/
 
 static void colorWipe(time_t t, uint32_t color)
 {
@@ -205,44 +199,4 @@ static void colorWipe(time_t t, uint32_t color)
         }
     }
     if((t - wait) > 50) wait = 0;
-}
-
-/**
- * Converts RGB to HSV. Scans hue degrees 0 to 1.
- */
-static void rgb_to_hsv(uint8_t red, uint8_t green, uint8_t blue, float hsv[3])
-{
-    float rp = (float)red/255.f,
-          gp = (float)green/255.f,
-          bp = (float)blue/255.f,
-          Cmax = 0.f,
-          Cmin = 0.f,
-          delta = 0.f,
-          hue = 0.f;
-
-    Cmax = rp > gp ? rp : gp;
-    Cmax = Cmax < bp ? bp : Cmax;
-    Cmin = rp < gp ? rp : gp;
-    Cmin = Cmin > gp ? gp : Cmin;
-    delta = Cmax - Cmin;
-
-    hsv[2] = Cmax;
-
-    if(delta == 0){
-        hue = 0;
-    } else if(Cmax == rp) {
-        hue = 60 * ( fmodf(((gp - bp)/delta), 6.f) );
-    } else if(Cmax = gp) {
-        hue = 60 * ( ((bp - rp)/delta) + 2 );
-    } else if(Cmax = bp) {
-        hue = 60 * ( ((rp - gp)/delta) + 4 );
-    }
-
-    if(Cmax == 0) {
-        hsv[1] = 0;
-    }else {
-        hsv[1] = delta/Cmax;
-    }
-
-    hsv[0] = hue/360;
 }

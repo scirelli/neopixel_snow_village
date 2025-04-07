@@ -15,6 +15,10 @@ AVR_GCC = $(AVR_GCC_PATH)/avr-gcc
 AVR_AR = $(AVR_GCC_PATH)/avr-gcc-ar
 AVR_OBJCOPY = $(AVR_GCC_PATH)/avr-objcopy
 
+# Avrdude paths
+AVRDUDE_PATH = /home/scirelli/.arduino15/packages/arduino/tools/avrdude/6.3.0-arduino17/bin/avrdude
+AVRDUDE_CONFIG = /home/scirelli/.arduino15/packages/arduino/tools/avrdude/6.3.0-arduino17/etc/avrdude.conf
+
 # Arduino core paths
 ARDUINO_HARDWARE_PATH = /home/scirelli/.arduino15/packages/arduino/hardware/avr/1.8.6
 ADAFRUIT_HARDWARE_PATH = /home/scirelli/.arduino15/packages/adafruit/hardware/avr/1.4.15
@@ -115,6 +119,10 @@ $(TARGET).hex: $(TARGET).elf
 # Check size
 size: $(TARGET).elf
 	$(AVR_GCC_PATH)/avr-size -C --mcu $(MCU) $<
+
+# Flash to MCU
+flash: $(TARGET).hex
+	$(AVRDUDE_PATH) -C$(AVRDUDE_CONFIG) -v -p$(MCU) -cusbtiny -Uflash:w:$<:i
 
 # Clean
 clean:
